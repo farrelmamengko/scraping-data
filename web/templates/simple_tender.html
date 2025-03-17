@@ -1,0 +1,489 @@
+{% extends "base.html" %}
+
+{% block title %}Berita Tender - CIVD SKK Migas{% endblock %}
+
+{% block page_title %}Berita{% endblock %}
+
+{% block content %}
+<!-- Search Box -->
+<div class="row mb-4">
+    <div class="col-md-8 mx-auto">
+        <div class="search-box">
+            <div class="input-group">
+                <input type="text" class="form-control" placeholder="Kata kunci..." id="searchInput">
+                <button class="btn btn-primary" type="button">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Informasi Jumlah Data -->
+<div class="row mb-3">
+    <div class="col-md-12 text-center">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>Total Data: {{ total_prakualifikasi }} Undangan Prakualifikasi dan {{ total_pelelangan }} Pelelangan Umum
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Kolom Undangan Prakualifikasi -->
+    <div class="col-md-6">
+        <div class="category-header prakualifikasi-header">
+            <h3><i class="fas fa-file-signature me-2"></i>Undangan Prakualifikasi</h3>
+        </div>
+        
+        <div id="prakualifikasi-container">
+            {% if prakualifikasi is defined and prakualifikasi|length > 0 %}
+                {% for tender in prakualifikasi %}
+                    <div class="tender-item prakualifikasi-item" data-title="{{ tender.title|default('') }}">
+                        <div class="tender-badge">
+                            <span class="badge-text">Prakualifikasi</span>
+                        </div>
+                        <h5 class="tender-title">
+                            {{ tender.title|default('Tidak ada judul') }}
+                        </h5>
+                        <div class="tender-info">
+                            <p class="mb-1">
+                                <i class="fas fa-building me-1"></i> <strong>{{ tender.company|default('SKK Migas') }}</strong>
+                            </p>
+                            <p class="mb-1">
+                                <i class="fas fa-calendar-alt me-1"></i> {{ tender.date|default(tender.scraped_at|default('Tidak ada tanggal')) }}
+                            </p>
+                            <p class="tender-description">
+                                {{ tender.description|default('Bersama ini kami sampaikan informasi tender terbaru dari SKK Migas. Silakan klik tombol "Lebih lanjut" untuk melihat detail tender.') }}
+                            </p>
+                        </div>
+                        <div class="tender-actions">
+                            {% if tender.attachment_url %}
+                                <a href="https://civd.skkmigas.go.id/index.jwebs" target="_blank" class="btn-lebih-lanjut prakualifikasi-btn">
+                                    <i class="fas fa-external-link-alt me-1"></i> Lebih lanjut
+                                </a>
+                                <a href="{{ url_for('download_pdf', filename=tender.attachment_name, category='prakualifikasi', file_id=tender.attachment_id, file_name=tender.attachment_name) }}" class="ms-2 badge bg-secondary" download>
+                                    <i class="fas fa-paperclip"></i> Download PDF
+                                </a>
+                            {% else %}
+                                <a href="#" class="btn-lebih-lanjut prakualifikasi-btn disabled">
+                                    <i class="fas fa-external-link-alt me-1"></i> Lebih lanjut
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+                
+                <!-- Pagination untuk Prakualifikasi -->
+                {% if total_pages_prakualifikasi > 1 %}
+                <div class="pagination-container">
+                    <nav aria-label="Prakualifikasi pagination">
+                        <ul class="pagination justify-content-center">
+                            <!-- First Page -->
+                            <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('index', page=1) }}" aria-label="First">
+                                    <span aria-hidden="true">&laquo;&laquo;</span>
+                                </a>
+                            </li>
+                            
+                            <!-- Previous Page -->
+                            <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('index', page=page-1) }}" aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                            
+                            <!-- Page Numbers -->
+                            {% set start_page = [page - 2, 1] | max %}
+                            {% set end_page = [start_page + 4, total_pages_prakualifikasi] | min %}
+                            {% set start_page = [end_page - 4, 1] | max %}
+                            
+                            {% for p in range(start_page, end_page + 1) %}
+                                <li class="page-item {% if p == page %}active{% endif %}">
+                                    <a class="page-link" href="{{ url_for('index', page=p) }}">{{ p }}</a>
+                                </li>
+                            {% endfor %}
+                            
+                            <!-- Next Page -->
+                            <li class="page-item {% if page == total_pages_prakualifikasi %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('index', page=page+1) }}" aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                            
+                            <!-- Last Page -->
+                            <li class="page-item {% if page == total_pages_prakualifikasi %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('index', page=total_pages_prakualifikasi) }}" aria-label="Last">
+                                    <span aria-hidden="true">&raquo;&raquo;</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                    <div class="text-center mt-2">
+                        <small class="text-muted">Halaman {{ page }} dari {{ total_pages_prakualifikasi }}</small>
+                    </div>
+                </div>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Tidak ada data Undangan Prakualifikasi.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Kolom Pelelangan Umum -->
+    <div class="col-md-6">
+        <div class="category-header pelelangan-header">
+            <h3><i class="fas fa-gavel me-2"></i>Pelelangan Umum</h3>
+        </div>
+        
+        <div id="pelelangan-container">
+            {% if pelelangan is defined and pelelangan|length > 0 %}
+                {% for tender in pelelangan %}
+                    <div class="tender-item pelelangan-item" data-title="{{ tender.title|default('') }}">
+                        <div class="tender-badge pelelangan-badge">
+                            <span class="badge-text">Pelelangan</span>
+                        </div>
+                        <h5 class="tender-title">
+                            {{ tender.title|default('Tidak ada judul') }}
+                        </h5>
+                        <div class="tender-info">
+                            <p class="mb-1">
+                                <i class="fas fa-building me-1"></i> <strong>{{ tender.company|default('SKK Migas') }}</strong>
+                            </p>
+                            <p class="mb-1">
+                                <i class="fas fa-calendar-alt me-1"></i> {{ tender.date|default(tender.scraped_at|default('Tidak ada tanggal')) }}
+                            </p>
+                            <p class="tender-description">
+                                {{ tender.description|default('Bersama ini kami sampaikan informasi tender terbaru dari SKK Migas. Silakan klik tombol "Lebih lanjut" untuk melihat detail tender.') }}
+                            </p>
+                        </div>
+                        <div class="tender-actions">
+                            {% if tender.attachment_url %}
+                                <a href="https://civd.skkmigas.go.id/index.jwebs" target="_blank" class="btn-lebih-lanjut pelelangan-btn">
+                                    <i class="fas fa-external-link-alt me-1"></i> Lebih lanjut
+                                </a>
+                                <a href="{{ url_for('download_pdf', filename=tender.attachment_name, category='pelelangan', file_id=tender.attachment_id, file_name=tender.attachment_name) }}" class="ms-2 badge bg-secondary" download>
+                                    <i class="fas fa-paperclip"></i> Download PDF
+                                </a>
+                            {% else %}
+                                <a href="#" class="btn-lebih-lanjut pelelangan-btn disabled">
+                                    <i class="fas fa-external-link-alt me-1"></i> Lebih lanjut
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+                
+                <!-- Pagination untuk Pelelangan -->
+                {% if total_pages_pelelangan > 1 %}
+                <div class="pagination-container">
+                    <nav aria-label="Pelelangan pagination">
+                        <ul class="pagination justify-content-center">
+                            <!-- First Page -->
+                            <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('index', page=1) }}" aria-label="First">
+                                    <span aria-hidden="true">&laquo;&laquo;</span>
+                                </a>
+                            </li>
+                            
+                            <!-- Previous Page -->
+                            <li class="page-item {% if page == 1 %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('index', page=page-1) }}" aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                            
+                            <!-- Page Numbers -->
+                            {% set start_page = [page - 2, 1] | max %}
+                            {% set end_page = [start_page + 4, total_pages_pelelangan] | min %}
+                            {% set start_page = [end_page - 4, 1] | max %}
+                            
+                            {% for p in range(start_page, end_page + 1) %}
+                                <li class="page-item {% if p == page %}active{% endif %}">
+                                    <a class="page-link" href="{{ url_for('index', page=p) }}">{{ p }}</a>
+                                </li>
+                            {% endfor %}
+                            
+                            <!-- Next Page -->
+                            <li class="page-item {% if page == total_pages_pelelangan %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('index', page=page+1) }}" aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                            
+                            <!-- Last Page -->
+                            <li class="page-item {% if page == total_pages_pelelangan %}disabled{% endif %}">
+                                <a class="page-link" href="{{ url_for('index', page=total_pages_pelelangan) }}" aria-label="Last">
+                                    <span aria-hidden="true">&raquo;&raquo;</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                    <div class="text-center mt-2">
+                        <small class="text-muted">Halaman {{ page }} dari {{ total_pages_pelelangan }}</small>
+                    </div>
+                </div>
+                {% endif %}
+            {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Tidak ada data Pelelangan Umum.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if not prakualifikasi and not pelelangan %}
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>Belum ada data tender. Silakan jalankan scraper terlebih dahulu.
+        </div>
+        <div class="card bg-light">
+            <div class="card-body">
+                <h5 class="card-title">Cara Menjalankan Scraper</h5>
+                <p class="card-text">Untuk menjalankan scraper, gunakan perintah berikut di terminal:</p>
+                <div class="bg-dark text-light p-3 rounded">
+                    <code>python main.py --run-once</code>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .category-header {
+        padding: 15px;
+        border-radius: 8px 8px 0 0;
+        margin-bottom: 20px;
+        color: white;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .category-header h3 {
+        margin: 0;
+        font-size: 1.5rem;
+        position: relative;
+        z-index: 2;
+    }
+    
+    .category-header:after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="rgba(255,255,255,0.1)" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,149.3C960,160,1056,160,1152,138.7C1248,117,1344,75,1392,53.3L1440,32L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>');
+        background-repeat: no-repeat;
+        background-position: bottom;
+        background-size: cover;
+        z-index: 1;
+    }
+    
+    .prakualifikasi-header {
+        background-color: #17a2b8;
+    }
+    
+    .pelelangan-header {
+        background-color: #dc3545;
+    }
+    
+    .tender-item {
+        border-left: none;
+        padding: 20px;
+        margin-bottom: 20px;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        position: relative;
+        transition: all 0.3s ease;
+        overflow: hidden;
+    }
+    
+    .tender-item:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+    
+    .prakualifikasi-item {
+        border-top: 3px solid #17a2b8;
+    }
+    
+    .pelelangan-item {
+        border-top: 3px solid #dc3545;
+    }
+    
+    .tender-badge {
+        position: absolute;
+        top: 0;
+        right: 0;
+        background-color: #17a2b8;
+        color: white;
+        padding: 5px 15px;
+        font-size: 0.8rem;
+        border-radius: 0 8px 0 8px;
+    }
+    
+    .pelelangan-badge {
+        background-color: #dc3545;
+    }
+    
+    .tender-title {
+        font-weight: 600;
+        margin-bottom: 15px;
+        padding-right: 100px;
+        font-size: 1.1rem;
+    }
+    
+    .tender-info {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-bottom: 15px;
+    }
+    
+    .tender-description {
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        margin-top: 10px;
+        font-style: italic;
+    }
+    
+    .tender-actions {
+        display: flex;
+        align-items: center;
+        margin-top: 15px;
+    }
+    
+    .btn-lebih-lanjut {
+        padding: 8px 15px;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.3s ease;
+    }
+    
+    .prakualifikasi-btn {
+        background-color: #17a2b8;
+        color: white;
+    }
+    
+    .prakualifikasi-btn:hover {
+        background-color: #138496;
+        color: white;
+    }
+    
+    .pelelangan-btn {
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .pelelangan-btn:hover {
+        background-color: #c82333;
+        color: white;
+    }
+    
+    .no-data-container {
+        text-align: center;
+        padding: 30px;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+    
+    .no-data-icon {
+        font-size: 3rem;
+        color: #dee2e6;
+        margin-bottom: 15px;
+    }
+    
+    .pagination-container {
+        margin-top: 20px;
+        margin-bottom: 30px;
+    }
+    
+    @media (max-width: 768px) {
+        .col-md-6 {
+            margin-bottom: 30px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Fungsi pencarian sederhana
+    document.getElementById('searchInput').addEventListener('keyup', function() {
+        const searchText = this.value.toLowerCase();
+        const prakualifikasiItems = document.querySelectorAll('.prakualifikasi-item');
+        const pelelanganItems = document.querySelectorAll('.pelelangan-item');
+        
+        // Cek apakah ada item yang cocok di masing-masing kategori
+        let prakualifikasiFound = false;
+        let pelelanganFound = false;
+        
+        // Cari di Prakualifikasi
+        prakualifikasiItems.forEach(item => {
+            const title = item.getAttribute('data-title').toLowerCase();
+            if (title.includes(searchText)) {
+                item.style.display = 'block';
+                prakualifikasiFound = true;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+        
+        // Cari di Pelelangan
+        pelelanganItems.forEach(item => {
+            const title = item.getAttribute('data-title').toLowerCase();
+            if (title.includes(searchText)) {
+                item.style.display = 'block';
+                pelelanganFound = true;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+        
+        // Tampilkan pesan jika tidak ada hasil di kategori
+        const prakualifikasiContainer = document.getElementById('prakualifikasi-container');
+        const pelelanganContainer = document.getElementById('pelelangan-container');
+        
+        // Hapus pesan "tidak ditemukan" yang mungkin sudah ada
+        const existingNoResults = document.querySelectorAll('.no-results');
+        existingNoResults.forEach(el => el.remove());
+        
+        // Tambahkan pesan jika tidak ada hasil
+        if (!prakualifikasiFound && prakualifikasiItems.length > 0) {
+            const noResults = document.createElement('div');
+            noResults.className = 'no-data-container no-results';
+            noResults.innerHTML = `
+                <div class="no-data-icon">
+                    <i class="fas fa-search"></i>
+                </div>
+                <p>Tidak ditemukan Undangan Prakualifikasi dengan kata kunci "${searchText}"</p>
+            `;
+            prakualifikasiContainer.appendChild(noResults);
+        }
+        
+        if (!pelelanganFound && pelelanganItems.length > 0) {
+            const noResults = document.createElement('div');
+            noResults.className = 'no-data-container no-results';
+            noResults.innerHTML = `
+                <div class="no-data-icon">
+                    <i class="fas fa-search"></i>
+                </div>
+                <p>Tidak ditemukan Pelelangan Umum dengan kata kunci "${searchText}"</p>
+            `;
+            pelelanganContainer.appendChild(noResults);
+        }
+    });
+</script>
+{% endblock %} 

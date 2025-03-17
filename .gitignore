@@ -1,0 +1,37 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+*.log
+logs/
+web_app.log
+
+# Temporary files
+temp/
+.DS_Store
+
+# Environment
+venv/
+env/
+.env
+
+# API response files (bisa dihasilkan kembali)
+*_api_response*.html
+main_page.html
+prakualifikasi_page.html
+
+# Cached data
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Attachments (data yang diunduh)
+attachments/ 

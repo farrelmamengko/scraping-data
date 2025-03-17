@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Download Gagal{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4>Download Gagal</h4>
+                </div>
+                <div class="card-body">
+                    <p>Maaf, kami tidak dapat mengunduh file <strong>{{ filename }}</strong>.</p>
+                    
+                    {% if error %}
+                    <div class="alert alert-danger">
+                        <strong>Error:</strong> {{ error }}
+                    </div>
+                    {% endif %}
+                    
+                    <p>Beberapa kemungkinan penyebab:</p>
+                    <ul>
+                        <li>File tidak tersedia di server</li>
+                        <li>Sesi login telah berakhir</li>
+                        <li>Masalah koneksi jaringan</li>
+                        <li>Perubahan struktur website</li>
+                    </ul>
+                    
+                    <p>Apa yang ingin Anda lakukan?</p>
+                    
+                    <div class="d-flex mt-4">
+                        <a href="{{ url_for('download_with_selenium', filename=filename) }}" class="btn btn-primary me-2">
+                            <i class="fas fa-robot"></i> Coba dengan Selenium
+                        </a>
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary me-2">
+                            <i class="fas fa-home"></i> Kembali ke Beranda
+                        </a>
+                        <a href="javascript:history.back()" class="btn btn-outline-dark">
+                            <i class="fas fa-arrow-left"></i> Kembali
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - CIVD SKK Migas Tender Tracker{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        height: 300px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Beranda</a></li>
+                <li class="breadcrumb-item active">Dashboard</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Dashboard Tender</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="card-title">Total Tender</h6>
+                                        <h2 class="mb-0" id="total-tender">0</h2>
+                                    </div>
+                                    <i class="fas fa-file-alt fa-3x opacity-50"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="card-title">Undangan Prakualifikasi</h6>
+                                        <h2 class="mb-0" id="total-prakualifikasi">0</h2>
+                                    </div>
+                                    <i class="fas fa-file-signature fa-3x opacity-50"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="card-title">Pelelangan Umum</h6>
+                                        <h2 class="mb-0" id="total-pelelangan">0</h2>
+                                    </div>
+                                    <i class="fas fa-gavel fa-3x opacity-50"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Distribusi Jenis Tender</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="tenderTypeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Tender per Bulan</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="tenderMonthChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-table me-2"></i>Data Tender Terbaru</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="latestTenderTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>No</th>
+                                <th>Jenis</th>
+                                <th>Judul</th>
+                                <th>Tanggal</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Data akan diisi oleh JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Fungsi untuk memuat data dari API
+    async function loadData() {
+        try {
+            const response = await fetch('/api/data');
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Error loading data:', error);
+            return [];
+        }
+    }
+
+    // Fungsi untuk memperbarui kartu statistik
+    function updateStats(data) {
+        const prakualifikasi = data.filter(item => item.type === 'prakualifikasi' || 
+                                                  (item.filename && item.filename.includes('prakualifikasi')));
+        const pelelangan = data.filter(item => item.type === 'pelelangan_umum' || 
+                                              (item.filename && item.filename.includes('pelelangan_umum')));
+        
+        document.getElementById('total-tender').textContent = data.length;
+        document.getElementById('total-prakualifikasi').textContent = prakualifikasi.length;
+        document.getElementById('total-pelelangan').textContent = pelelangan.length;
+    }
+
+    // Fungsi untuk membuat grafik distribusi jenis tender
+    function createTenderTypeChart(data) {
+        const prakualifikasi = data.filter(item => item.type === 'prakualifikasi' || 
+                                                  (item.filename && item.filename.includes('prakualifikasi'))).length;
+        const pelelangan = data.filter(item => item.type === 'pelelangan_umum' || 
+                                              (item.filename && item.filename.includes('pelelangan_umum'))).length;
+        
+        const ctx = document.getElementById('tenderTypeChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: ['Undangan Prakualifikasi', 'Pelelangan Umum'],
+                datasets: [{
+                    data: [prakualifikasi, pelelangan],
+                    backgroundColor: ['rgba(23, 162, 184, 0.8)', 'rgba(255, 193, 7, 0.8)'],
+                    borderColor: ['rgb(23, 162, 184)', 'rgb(255, 193, 7)'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+
+    // Fungsi untuk membuat grafik tender per bulan
+    function createTenderMonthChart(data) {
+        // Mengelompokkan data berdasarkan bulan
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+        const prakualifikasiByMonth = Array(12).fill(0);
+        const pelelanganByMonth = Array(12).fill(0);
+        
+        data.forEach(item => {
+            let date;
+            if (item.date) {
+                date = new Date(item.date);
+            } else if (item.scraped_at) {
+                date = new Date(item.scraped_at);
+            } else {
+                // Jika tidak ada tanggal, gunakan tanggal saat ini
+                date = new Date();
+            }
+            
+            const month = date.getMonth();
+            
+            if (item.type === 'prakualifikasi' || (item.filename && item.filename.includes('prakualifikasi'))) {
+                prakualifikasiByMonth[month]++;
+            } else if (item.type === 'pelelangan_umum' || (item.filename && item.filename.includes('pelelangan_umum'))) {
+                pelelanganByMonth[month]++;
+            }
+        });
+        
+        const ctx = document.getElementById('tenderMonthChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: months,
+                datasets: [
+                    {
+                        label: 'Undangan Prakualifikasi',
+                        data: prakualifikasiByMonth,
+                        backgroundColor: 'rgba(23, 162, 184, 0.8)',
+                        borderColor: 'rgb(23, 162, 184)',
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Pelelangan Umum',
+                        data: pelelanganByMonth,
+                        backgroundColor: 'rgba(255, 193, 7, 0.8)',
+                        borderColor: 'rgb(255, 193, 7)',
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+
+    // Fungsi untuk memperbarui tabel tender terbaru
+    function updateLatestTenderTable(data) {
+        const tableBody = document.getElementById('latestTenderTable').getElementsByTagName('tbody')[0];
+        tableBody.innerHTML = '';
+        
+        // Ambil 10 data terbaru
+        const latestData = data.slice(0, 10);
+        
+        latestData.forEach((item, index) => {
+            const row = tableBody.insertRow();
+            
+            // Kolom No
+            const cellNo = row.insertCell();
+            cellNo.textContent = index + 1;
+            
+            // Kolom Jenis
+            const cellType = row.insertCell();
+            const type = item.type === 'prakualifikasi' || (item.filename && item.filename.includes('prakualifikasi')) 
+                ? 'Undangan Prakualifikasi' 
+                : 'Pelelangan Umum';
+            const badgeClass = type === 'Undangan Prakualifikasi' ? 'bg-info' : 'bg-warning';
+            cellType.innerHTML = `<span class="badge ${badgeClass}">${type}</span>`;
+            
+            // Kolom Judul
+            const cellTitle = row.insertCell();
+            cellTitle.textContent = item.title || 'Tidak ada judul';
+            cellTitle.style.maxWidth = '300px';
+            cellTitle.style.overflow = 'hidden';
+            cellTitle.style.textOverflow = 'ellipsis';
+            cellTitle.style.whiteSpace = 'nowrap';
+            
+            // Kolom Tanggal
+            const cellDate = row.insertCell();
+            const date = item.date || item.scraped_at || 'Tidak ada tanggal';
+            cellDate.textContent = date;
+            
+            // Kolom Aksi
+            const cellAction = row.insertCell();
+            if (item.url || item.detail_url) {
+                const url = item.url || item.detail_url;
+                cellAction.innerHTML = `
+                    <a href="${url}" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-external-link-alt me-1"></i>Buka
+                    </a>
+                `;
+            } else {
+                cellAction.textContent = 'Tidak ada link';
+            }
+        });
+    }
+
+    // Inisialisasi dashboard
+    async function initDashboard() {
+        const data = await loadData();
+        
+        if (data.length > 0) {
+            updateStats(data);
+            createTenderTypeChart(data);
+            createTenderMonthChart(data);
+            updateLatestTenderTable(data);
+        } else {
+            document.getElementById('latestTenderTable').getElementsByTagName('tbody')[0].innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center">
+                        <div class="alert alert-info mb-0">
+                            <i class="fas fa-info-circle me-2"></i>Belum ada data tender. Silakan jalankan scraper terlebih dahulu.
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    // Jalankan inisialisasi saat halaman dimuat
+    document.addEventListener('DOMContentLoaded', initDashboard);
+</script>
+{% endblock %} 

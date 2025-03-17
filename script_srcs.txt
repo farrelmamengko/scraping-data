@@ -1,0 +1,8 @@
+/assets/js/jquery-3.6.0.min.js
+/assets/js/jquery-table-export/bootstrap-table.min.js
+/assets/js/popper.min.js
+/assets/js/bootstrap.min.js
+/assets/js/bootstrap-datepicker.js
+/assets/js/scrolled-navbar.js
+/assets/js/plugins/toastr/toastr.min.js
+/bnith__oXaReVC26j1wDe0W5E8cq9A81NVw9VgSrgl_kmHkZDSTtiozCOapjBjhAar2LLouODklHvpCd_E=

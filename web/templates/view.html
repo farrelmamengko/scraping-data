@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}{{ file_type }} - {{ file_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .table-container {
+        overflow-x: auto;
+    }
+    .tender-title {
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .tender-title:hover {
+        white-space: normal;
+        overflow: visible;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Beranda</a></li>
+                <li class="breadcrumb-item active">{{ file_type }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">
+                    {% if 'prakualifikasi' in file_name %}
+                    <i class="fas fa-file-alt me-2"></i>Undangan Prakualifikasi
+                    {% else %}
+                    <i class="fas fa-gavel me-2"></i>Pelelangan Umum
+                    {% endif %}
+                </h4>
+                <span class="badge bg-light text-dark">{{ file_name }}</span>
+            </div>
+            <div class="card-body">
+                {% if records %}
+                <div class="table-container">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>No</th>
+                                {% for column in columns %}
+                                <th>{{ column }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in records %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                {% for column in columns %}
+                                <td {% if column == 'title' %}class="tender-title"{% endif %}>
+                                    {% if column == 'url' and record[column] %}
+                                    <a href="{{ record[column] }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-external-link-alt me-1"></i>Buka
+                                    </a>
+                                    {% elif column == 'detail_url' and record[column] %}
+                                    <a href="{{ record[column] }}" target="_blank" class="btn btn-sm btn-outline-info">
+                                        <i class="fas fa-info-circle me-1"></i>Detail
+                                    </a>
+                                    {% else %}
+                                    {{ record[column] }}
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Tidak ada data dalam file ini.
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer">
+                <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Kembali
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
