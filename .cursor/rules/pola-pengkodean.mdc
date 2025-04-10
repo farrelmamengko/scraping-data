@@ -1,0 +1,27 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Selalu lebih memilih solusi sederhana
+
+- Hindari duplikasi kode bila memungkinkan, yang berarti memeriksa area lain dari basis kode yang mungkin sudah memiliki kode dan fungsi serupa
+
+-Tulis kode yang memperhitungkan lingkungan yang berbeda: dev, test, dan prod
+
+-Anda berhati-hati untuk hanya membuat perubahan yang diminta atau yang Anda yakini dipahami dengan baik dan terkait dengan perubahan yang diminta. Saat memperbaiki masalah atau bug, jangan memperkenalkan pola atau teknologi baru tanpa terlebih dahulu mencoba semua opsi untuk implementasi yang ada. Dan jika Anda akhirnya melakukan ini, pastikan untuk menghapus implementasi lama setelahnya sehingga kita tidak memiliki logika duplikat.
+
+-Jaga basis kode tetap bersih dan teratur
+
+-Hindari menulis skrip dalam file jika memungkinkan, terutama jika skrip tersebut kemungkinan hanya akan dijalankan sekali
+
+-Hindari memiliki file dengan lebih dari 200-300 baris kode. Lakukan refaktor pada tahap tersebut.
+
+-Data tiruan hanya diperlukan untuk pengujian, jangan pernah data tiruan untuk pengembangan atau produksi.
+
+-Jangan pernah menambahkan stubbing atau pola data palsu ke kode yang memengaruhi lingkungan dev atau prod

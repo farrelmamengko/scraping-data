@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+#coding workflow prefrences
+
+-Fokus pada area kode yang relevan dengan tugas
+-Jangan sentuh kode yang tidak terkait dengan tugas
+
+-Tulis pengujian menyeluruh untuk semua fungsi utama
+
+-Menambahkan mekanisme melihat kembali yang tidak valid Hindari membuat perubahan besar pada pola dan arsitektur cara kerja suatu fitur, setelah fitur tersebut terbukti berfungsi dengan baik, kecuali jika diinstruksikan secara eksplisit
+-Selalu pikirkan metode dan area kode lain yang mungkin terpengaruh oleh perubahan kode
