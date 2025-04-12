@@ -1,72 +1,42 @@
+/**
+ * Scraper utama untuk CIVD SKK Migas
+ * 
+ * Aplikasi ini melakukan scraping data dari situs CIVD SKK Migas untuk:
+ * 1. Undangan Prakualifikasi
+ * 2. Pelelangan Umum
+ * 
+ * Pendekatan scraping:
+ * - Menggunakan Puppeteer untuk browser automation
+ * - Menggunakan deteksi otomatis halaman dan pagination
+ * - Memfilter data duplikat secara otomatis
+ * - Menyimpan hasil ke file CSV
+ * 
+ * Keterbatasan yang ditemui:
+ * - Situs menggunakan AJAX untuk navigasi halaman yang memerlukan interaksi pengguna
+ * - Sistem pagination tidak bekerja dengan baik untuk otomatisasi
+ * - Beberapa halaman mungkin memiliki konten dinamis yang sulit diakses
+ * 
+ * @author Developer
+ * @version 1.0.0
+ */
+
 require('dotenv').config();
 const { scrapePrakualifikasi } = require('./scrapers/prakualifikasi');
-const { scrapePelelangan } = require('./scrapers/pelelangan');
-const { exportToCsv } = require('./utils/csvExporter');
+const pelelangan = require('./scrapers/pelelangan');
 
+/**
+ * Fungsi utama yang menjalankan proses scraping
+ */
 async function main() {
   try {
-    console.log('Memulai scraping data CIVD SKK Migas...');
-    
-    // Scrape data Undangan Prakualifikasi
-    console.log('Mengambil data Undangan Prakualifikasi...');
-    const prakualifikasiData = await scrapePrakualifikasi();
-    console.log(`Berhasil mengambil ${prakualifikasiData.length} data Undangan Prakualifikasi`);
-    
-    // Scrape data Pelelangan Umum
-    console.log('Mengambil data Pelelangan Umum...');
-    const pelelanganData = await scrapePelelangan();
-    console.log(`Berhasil mengambil ${pelelanganData.length} data Pelelangan Umum`);
-    
-    // Definisikan header untuk CSV
-    const csvHeaders = [
-      { id: 'id', title: 'ID' },
-      { id: 'tanggal', title: 'Tanggal' },
-      { id: 'judul', title: 'Judul' },
-      { id: 'kkks', title: 'KKKS' },
-      { id: 'bidangUsaha', title: 'Bidang Usaha' },
-      { id: 'batasWaktu', title: 'Batas Waktu' },
-      { id: 'url', title: 'URL' },
-      { id: 'attachmentUrl', title: 'Attachment URL' },
-      { id: 'attachmentName', title: 'Attachment Name' }
-    ];
-    
-    // Ekspor data ke CSV
-    console.log('Menyimpan data ke file CSV...');
-    
-    // Simpan data Undangan Prakualifikasi
-    if (prakualifikasiData.length > 0) {
-      const prakualifikasiCsvPath = await exportToCsv(
-        prakualifikasiData,
-        'undangan_prakualifikasi',
-        csvHeaders
-      );
-      console.log(`Data Undangan Prakualifikasi berhasil disimpan ke ${prakualifikasiCsvPath}`);
-    } else {
-      console.log('Tidak ada data Undangan Prakualifikasi untuk disimpan');
-    }
-    
-    // Simpan data Pelelangan Umum
-    if (pelelanganData.length > 0) {
-      const pelelanganCsvPath = await exportToCsv(
-        pelelanganData,
-        'pelelangan_umum',
-        csvHeaders
-      );
-      console.log(`Data Pelelangan Umum berhasil disimpan ke ${pelelanganCsvPath}`);
-    } else {
-      console.log('Tidak ada data Pelelangan Umum untuk disimpan');
-    }
-    
-    // Tampilkan hasil
-    console.log('Data Undangan Prakualifikasi:');
-    console.log(JSON.stringify(prakualifikasiData, null, 2));
-    
-    console.log('Data Pelelangan Umum:');
-    console.log(JSON.stringify(pelelanganData, null, 2));
-    
+    console.log('Memulai proses scraping...');
+    const data = await scrapePrakualifikasi();
+    console.log(`Berhasil mengumpulkan ${data.length} data tender`);
+    console.log('Data:', data);
   } catch (error) {
-    console.error('Terjadi kesalahan:', error.message);
+    console.error('Error:', error.message);
   }
 }
 
+// Jalankan aplikasi
 main(); 

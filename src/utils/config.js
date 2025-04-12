@@ -11,8 +11,9 @@ function getScraperApiUrl(url) {
 
 // Path URL untuk halaman tertentu
 const PATHS = {
-  PRAKUALIFIKASI: TARGET_URL,  // URL utama website
-  PELELANGAN: TARGET_URL       // URL utama website
+  // Tambahkan fragment ID agar langsung mengarah ke section yang tepat
+  PRAKUALIFIKASI: `${TARGET_URL}#invitation`,  // URL untuk Undangan Prakualifikasi
+  PELELANGAN: `${TARGET_URL}#bid`              // URL untuk Pelelangan Umum
 };
 
 module.exports = {
