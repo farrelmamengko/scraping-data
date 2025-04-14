@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - SKK Migas Tender</title>
+    <!-- FullCalendar CSS -->
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+    
+    <!-- Gaya Dashboard -->
+    <style>
+        /* Reset dasar dan gaya body */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #eef2f7;
+            color: #343a40;
+            line-height: 1.6;
+            padding: 0 20px 20px 20px;
+        }
+        /* Header */
+        .app-header { background-color: #ffffff; padding: 15px 40px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08); margin-bottom: 40px; border-bottom: 1px solid #e1e4e8; }
+        .app-header h1 { color: #17a2b8; font-size: 1.8em; font-weight: 700; text-align: left; margin: 0; }
+        /* Kontainer utama */
+        .main-container { max-width: 1200px; margin: 0 auto; padding: 0 10px; }
+        /* Judul Section */
+        h2 { color: #17a2b8; margin-bottom: 25px; padding-bottom: 10px; border-bottom: 2px solid #e1e4e8; font-weight: 600; font-size: 1.6em; }
+        
+        /* Grid Statistik */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .stat-card {
+            background-color: #ffffff;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+            padding: 25px;
+            text-align: center;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .stat-card .stat-number {
+            font-size: 2.5em;
+            font-weight: 700;
+            color: #17a2b8;
+            display: block;
+            margin-bottom: 5px;
+        }
+        .stat-card .stat-label {
+            font-size: 0.9em;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+
+        /* Daftar Tender Terbaru */
+        .latest-tenders-list {
+            list-style: none;
+            padding: 0;
+        }
+        .latest-tenders-list li {
+            background-color: #ffffff;
+            border: 1px solid #e1e4e8;
+            border-radius: 6px;
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.95em;
+        }
+        .latest-tenders-list .tender-title {
+            color: #138496;
+            font-weight: 500;
+        }
+        .latest-tenders-list .tender-type {
+            font-size: 0.85em;
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-left: 15px;
+        }
+        .latest-tenders-list .tender-type.prakualifikasi {
+            background-color: #e2f7fa;
+            color: #138496;
+        }
+        .latest-tenders-list .tender-type.pelelangan {
+             background-color: #fff3cd; /* Contoh warna lain */
+             color: #856404; 
+        }
+        .latest-tenders-list .tender-date {
+            font-size: 0.85em;
+            color: #6c757d;
+            margin-left: 15px;
+        }
+
+        /* Link kembali */
+        .back-link {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 10px 20px;
+            background-color: #6c757d;
+            color: #ffffff;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background-color 0.2s ease;
+        }
+        .back-link:hover {
+            background-color: #5a6268;
+        }
+
+        /* Gaya tambahan untuk kontainer kalender */
+        #calendar-container {
+            background-color: #ffffff;
+            padding: 25px;
+            border-radius: 8px;
+            border: 1px solid #e1e4e8;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            margin-top: 40px; /* Jarak dari elemen di atasnya */
+        }
+        /* Kustomisasi tampilan FullCalendar (opsional) */
+        .fc .fc-toolbar-title {
+            font-size: 1.4em;
+            color: #138496;
+        }
+        .fc .fc-button-primary {
+            background-color: #17a2b8;
+            border-color: #17a2b8;
+        }
+        .fc .fc-button-primary:hover {
+            background-color: #138496;
+            border-color: #138496;
+        }
+        .fc-daygrid-event {
+            background-color: #e2f7fa;
+            border-color: #17a2b8;
+            color: #138496;
+            padding: 2px 4px;
+            font-size: 0.8em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .fc-event-title {
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+<header class="app-header">
+    <h1>SKK Migas Tender Dashboard</h1>
+</header>
+
+<div class="main-container">
+
+    <h2>Ringkasan Data</h2>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="stat-number"><%= totalTenders %></span>
+            <span class="stat-label">Total Tender</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number"><%= totalPrakualifikasi %></span>
+            <span class="stat-label">Prakualifikasi</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number"><%= totalPelelangan %></span>
+            <span class="stat-label">Pelelangan Umum</span>
+        </div>
+    </div>
+
+    <!-- Kontainer untuk Kalender -->
+    <h2>Kalender Deadline Tender</h2>
+    <div id='calendar-container'>
+        <div id='calendar'></div>
+    </div>
+
+    <h2>Tender Terbaru</h2>
+    <% if (latestTenders && latestTenders.length > 0) { %>
+        <ul class="latest-tenders-list">
+            <% latestTenders.forEach(tender => { %>
+                <li>
+                    <div>
+                        <span class="tender-title"><%= tender.judul %></span>
+                        <span class="tender-type <%= tender.tipe_tender === 'Prakualifikasi' ? 'prakualifikasi' : 'pelelangan' %>">
+                            <%= tender.tipe_tender %>
+                        </span>
+                    </div>
+                    <span class="tender-date">Dibuat: <%= new Date(tender.createdAt).toLocaleDateString('id-ID') %></span>
+                </li>
+            <% }); %>
+        </ul>
+    <% } else { %>
+        <p>Belum ada data tender.</p>
+    <% } %>
+
+    <a href="/" class="back-link">&laquo; Kembali ke Daftar Tender</a>
+
+</div>
+
+<!-- FullCalendar JS -->
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const calendarEl = document.getElementById('calendar');
+        
+        // Ambil data event dari variabel EJS (perlu di-parse dengan aman)
+        const calendarEventsRaw = <%- JSON.stringify(calendarEvents || []) %>;
+        
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth', // Tampilan bulan default
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek' // Opsi tampilan bulan/minggu
+            },
+            events: calendarEventsRaw,
+            eventColor: '#17a2b8', // Warna default event
+            eventDisplay: 'block', // Tampilkan event sebagai blok
+            dayMaxEvents: true, // Batasi jumlah event per hari dengan tombol "+more"
+            // eventClick: function(info) { // Fungsi jika event di klik (opsional)
+            //     alert('Event: ' + info.event.title);
+            //     // Bisa juga buka modal detail di sini jika diinginkan
+            //     // info.jsEvent.preventDefault(); // Mencegah browser mengikuti URL jika ada
+            // }
+        });
+        
+        calendar.render();
+    });
+</script>
+
+</body>
+</html> 

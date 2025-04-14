@@ -116,7 +116,7 @@ function extractPelelanganFromHtml($) {
 
       if (pelelangan.id) {
          pelelanganData.push(pelelangan);
-      } else {
+            } else {
           console.warn("Gagal mendapatkan ID untuk card:", title);
       }
 
@@ -197,9 +197,9 @@ async function scrapePelelangan() {
 // async function scrapePelelanganWithPuppeteer() { ... }
 
 module.exports = {
-    scrapePelelangan,
+  scrapePelelangan,
     extractPelelanganFromHtml
-};
+}; 
 
 // Panggil fungsi untuk menjalankannya saat script dieksekusi langsung
 scrapePelelangan(); 

@@ -79,15 +79,21 @@ function insertProcurementData(data, tenderType) {
   const placeholders = data.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(',');
   const sql = `INSERT OR IGNORE INTO procurement_list (id, judul, tanggal, kkks, bidangUsaha, batasWaktu, url, attachmentUrl, attachmentName, tipe_tender) VALUES ${placeholders}`;
 
+  const today = new Date();
+  const options = { day: 'numeric', month: 'short', year: 'numeric' };
+  const formattedToday = today.toLocaleDateString('en-GB', options).replace(/ /g, ' ');
+
   const values = [];
   data.forEach(item => {
+    const batasWaktuValue = item.batasWaktu || formattedToday;
+
     values.push(
       item.id,
       item.judul,
-      item.tanggal,
+      formattedToday,
       item.kkks,
       item.bidangUsaha,
-      item.batasWaktu,
+      batasWaktuValue,
       item.url,
       item.attachmentUrl,
       item.attachmentName,
