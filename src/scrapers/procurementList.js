@@ -2,6 +2,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const { PATHS } = require('../utils/config');
 const { removeDuplicates } = require('../utils/helpers');
+const { insertProcurementData } = require('../utils/database'); // Import insertProcurementData
 
 /**
  * Ekstrak data procurement dari HTML menggunakan Cheerio
@@ -71,8 +72,10 @@ function extractProcurementFromHtml($) {
  * Mengambil data procurement menggunakan API endpoint
  */
 async function scrapeProcurementList() {
+  console.log('[DEBUG] Memasuki fungsi scrapeProcurementList'); // Log Debug 1
   try {
     console.log('Memulai scraping procurement list...');
+    console.log('[DEBUG] Inisialisasi variabel...'); // Log Debug 2
     
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -115,10 +118,17 @@ async function scrapeProcurementList() {
       }
     }
     
-    // Hapus duplikat dan return hasil
+    // Hapus duplikat
     const uniqueProcurement = removeDuplicates(allData);
     console.log(`Total data yang berhasil dikumpulkan: ${uniqueProcurement.length}`);
-    
+
+    // Simpan data ke database menggunakan fungsi utilitas
+    if (uniqueProcurement.length > 0) {
+        console.log('Menyimpan data ke database...');
+        insertProcurementData(uniqueProcurement, 'Prakualifikasi');
+        console.log('Perintah penyimpanan data dikirim.'); // Log diubah karena insert async
+    }
+
     return uniqueProcurement;
   } catch (error) {
     console.error('Error saat scraping procurement list:', error.message);
@@ -128,4 +138,7 @@ async function scrapeProcurementList() {
 
 module.exports = {
   scrapeProcurementList
-}; 
+};
+
+// Panggil fungsi untuk menjalankannya saat script dieksekusi langsung
+scrapeProcurementList(); 

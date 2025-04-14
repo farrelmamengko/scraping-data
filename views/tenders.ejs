@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKK Migas Tender List</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px; /* Tambah jarak antar container */
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            border: 1px solid #ddd;
+            text-align: left;
+            font-size: 14px; /* Ukuran font agar lebih pas */
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .empty-message {
+            text-align: center;
+            color: #888;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Daftar Tender SKK Migas</h1>
+
+    <!-- Tabel untuk Tender Prakualifikasi -->
+    <div class="container">
+        <h2>Tender Prakualifikasi</h2>
+        <% if (prakualifikasiTenders && prakualifikasiTenders.length > 0) { %>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Judul Tender</th>
+                        <th>Tanggal Tayang</th>
+                        <th>Batas Waktu</th>
+                        <th>KKKS</th>
+                        <th>Bidang Usaha</th>
+                        <th>Link Pengumuman</th>
+                        <th>Attachment</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% prakualifikasiTenders.forEach(tender => { %>
+                        <tr>
+                            <td><%= tender.id %></td>
+                            <td><a href="<%= tender.url %>" target="_blank"><%= tender.judul %></a></td>
+                            <td><%= tender.tanggal %></td>
+                            <td><%= tender.batasWaktu %></td>
+                            <td><%= tender.kkks %></td>
+                            <td><%= tender.bidangUsaha %></td>
+                            <td><a href="<%= tender.url %>" target="_blank">Lihat Detail</a></td>
+                            <td>
+                                <% if (tender.attachmentUrl && tender.attachmentName) { %>
+                                    <a href="<%= tender.attachmentUrl %>" target="_blank"><%= tender.attachmentName %></a>
+                                <% } else { %>
+                                    -
+                                <% } %>
+                            </td>
+                        </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        <% } else { %>
+            <p class="empty-message">Tidak ada data tender Prakualifikasi yang tersedia saat ini.</p>
+        <% } %>
+    </div>
+
+    <!-- Tabel untuk Tender Pelelangan Umum -->
+    <div class="container">
+        <h2>Tender Pelelangan Umum</h2>
+        <% if (pelelanganTenders && pelelanganTenders.length > 0) { %>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Judul Tender</th>
+                        <th>Tanggal Tayang</th>
+                        <th>Batas Waktu</th>
+                        <th>KKKS</th>
+                        <th>Bidang Usaha</th>
+                        <th>Link Pengumuman</th>
+                        <th>Attachment</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% pelelanganTenders.forEach(tender => { %>
+                        <tr>
+                            <td><%= tender.id %></td>
+                            <td><a href="<%= tender.url %>" target="_blank"><%= tender.judul %></a></td>
+                            <td><%= tender.tanggal %></td>
+                            <td><%= tender.batasWaktu %></td>
+                            <td><%= tender.kkks %></td>
+                            <td><%= tender.bidangUsaha %></td>
+                            <td><a href="<%= tender.url %>" target="_blank">Lihat Detail</a></td>
+                            <td>
+                                <% if (tender.attachmentUrl && tender.attachmentName) { %>
+                                    <a href="<%= tender.attachmentUrl %>" target="_blank"><%= tender.attachmentName %></a>
+                                <% } else { %>
+                                    -
+                                <% } %>
+                            </td>
+                        </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        <% } else { %>
+            <p class="empty-message">Tidak ada data tender Pelelangan Umum yang tersedia saat ini.</p>
+        <% } %>
+    </div>
+
+</body>
+</html> 
