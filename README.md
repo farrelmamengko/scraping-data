@@ -1,4 +1,66 @@
-# Sistem Scraping & Dashboard Tender SKK Migas
+# Scraper Tender SKK Migas (dengan Download PDF)
+
+Proyek ini berisi sekumpulan scraper Node.js untuk mengambil data tender dari situs CIVD SKK Migas dan aplikasi web sederhana untuk menampilkannya. Scraper juga dilengkapi dengan kemampuan untuk mengunduh attachment PDF terkait menggunakan Playwright.
+
+## Fitur
+
+*   Scraping data Undangan Prakualifikasi.
+*   Scraping data Pelelangan Umum melalui endpoint AJAX.
+*   Menyimpan data hasil scraping ke database SQLite (`database.db`).
+*   **Mengunduh attachment PDF** yang terkait dengan tender Prakualifikasi dan Pelelangan Umum menggunakan otomatisasi browser Playwright.
+*   Menangani paginasi saat mengunduh PDF.
+*   Melewati unduhan PDF jika file dengan nama yang sama sudah ada.
+*   Aplikasi web Express.js sederhana untuk menampilkan data tender dari database.
+*   Menyajikan PDF yang telah diunduh melalui aplikasi web.
+
+## Instalasi
+
+1.  **Clone Repository:**
+    ```bash
+    git clone <url-repository-anda>
+    cd <nama-folder-proyek>
+    ```
+2.  **Install Dependencies:**
+    ```bash
+    npm install
+    ```
+3.  **Install Browser Playwright:** Playwright memerlukan browser terpisah untuk otomatisasi. Jalankan perintah berikut untuk mengunduhnya:
+    ```bash
+    npx playwright install
+    ```
+    *(Ini mungkin memerlukan waktu beberapa saat tergantung koneksi internet Anda)*
+4.  **(Opsional) Setup Database:** Database SQLite (`database.db`) akan dibuat secara otomatis saat scraper atau server dijalankan pertama kali jika belum ada.
+
+## Penggunaan
+
+1.  **Menjalankan Scraper (termasuk Download PDF):**
+    *   Untuk Undangan Prakualifikasi:
+        ```bash
+        node src/scrapers/procurementList.js
+        ```
+    *   Untuk Pelelangan Umum:
+        ```bash
+        node src/scrapers/pelelangan.js
+        ```
+    *Catatan:* Menjalankan salah satu scraper di atas akan mengambil data tender *dan* secara otomatis memicu proses pengunduhan PDF menggunakan Playwright setelah data disimpan.
+
+2.  **Menjalankan Aplikasi Web Server:**
+    ```bash
+    node server.js
+    ```
+    Aplikasi akan berjalan di `http://localhost:3000` (default).
+
+## Struktur Folder
+
+*   `src/scrapers/`: Berisi script scraper (`procurementList.js`, `pelelangan.js`) dan utilitas pengunduhan PDF (`downloadPDFsPlaywright.js`).
+*   `src/utils/`: Berisi utilitas pembantu seperti koneksi database (`database.js`) dan penghapusan duplikat (`helpers.js`).
+*   `src/download pdf/`: **Direktori tempat file PDF yang berhasil diunduh disimpan.**
+*   `views/`: Berisi template EJS untuk aplikasi web (`tenders.ejs`, `dashboard.ejs`).
+*   `public/`: Berisi file statis (CSS, JS client-side) untuk aplikasi web.
+*   `database.db`: File database SQLite.
+*   `server.js`: Script utama untuk menjalankan server aplikasi web Express.
+*   `.env`: File untuk menyimpan variabel lingkungan (jika ada, saat ini tidak digunakan secara aktif oleh fungsi inti).
+*   `package.json`, `package-lock.json`: File manajemen dependensi Node.js.
 
 ## 1. Ikhtisar Proyek
 

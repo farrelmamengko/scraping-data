@@ -49,11 +49,17 @@ Dokumen ini menjelaskan detail teknis dari dua scraper utama yang digunakan dala
     *   Fungsi `downloadPdfsWithPlaywright` menerima array objek tender (minimal berisi `id` dan `attachmentName`) sebagai argumen.
     *   Menggunakan `playwright` (khususnya `chromium`) untuk meluncurkan browser secara *headless*.
     *   Menavigasi ke halaman utama CIVD (`https://civd.skkmigas.go.id/index.jwebs`).
-    *   Untuk setiap objek tender yang diterima:
-        *   Mencari elemen link `<a>` di halaman yang memiliki kelas `.download-btn` dan atribut `data-file-id` yang cocok dengan `tender.id`.
-        *   Jika elemen ditemukan dan terlihat, Playwright akan menunggu event `download` dan kemudian mengklik elemen tersebut untuk memicu unduhan.
-        *   File yang diunduh disimpan ke direktori `src/download pdf/` menggunakan nama file yang diambil dari `tender.attachmentName` (setelah disanitasi).
-        *   Menangani kasus di mana link tidak ditemukan atau tidak terlihat (misalnya, karena tender ada di halaman lain/paginasi, atau sudah tidak ada).
+    *   **Menangani Paginasi:** Melakukan loop melalui halaman-halaman hasil tender:
+        *   Memindai halaman *saat ini* untuk menemukan link unduhan (`a.download-btn[data-file-id="..."]`) yang cocok dengan ID tender yang masih ada dalam daftar tunggu.
+        *   Untuk setiap link yang ditemukan dan terlihat:
+            *   Memeriksa apakah file dengan nama yang sama (setelah disanitasi) sudah ada di direktori `src/download pdf/` menggunakan `fs.existsSync()`.
+            *   Jika file **belum ada**, Playwright menunggu event `download` dan mengklik link untuk memicu unduhan, lalu menyimpan file ke `src/download pdf/`.
+            *   Jika file **sudah ada**, unduhan dilewati untuk ID tersebut.
+            *   Tender yang telah diproses (baik diunduh maupun dilewati) dihapus dari daftar tunggu.
+        *   Setelah memindai halaman, mencari tombol "Next" (`#tnd1Result div.pagelinks a[title="Next"].uibutton`).
+        *   Jika tombol "Next" ditemukan dan **tidak** memiliki kelas `disable`, Playwright mengkliknya dan menunggu halaman berikutnya dimuat (`networkidle` dan `waitForSelector` untuk kontainer paginasi).
+        *   Jika tombol "Next" tidak ditemukan atau memiliki kelas `disable`, loop paginasi berhenti.
+    *   Melaporkan ringkasan jumlah file yang berhasil disimpan, dilewati (karena sudah ada), dan gagal/tidak ditemukan.
 *   **Integrasi**: 
     *   Fungsi `downloadPdfsWithPlaywright` diekspor dari file ini.
     *   Fungsi ini diimpor dan dipanggil oleh `procurementList.js` dan `pelelangan.js` *setelah* data tender mereka berhasil disimpan ke database. Data tender unik (array objek) diteruskan sebagai argumen ke fungsi ini.
@@ -61,6 +67,6 @@ Dokumen ini menjelaskan detail teknis dari dua scraper utama yang digunakan dala
 
 ## 4. Utilitas Terkait
 
-*   **`src/utils/database.js`**: Menyediakan fungsi `getDb`, `closeDb`, dan `insertProcurementData` yang digunakan oleh scraper untuk berinteraksi dengan database SQLite (`database.db`).
-*   **`src/utils/helpers.js`**: Menyediakan fungsi `removeDuplicates`. 
+*   **`src/utils/database.js`**: Menyediakan fungsi (`getDb`, `closeDb`, `insertProcurementData`) yang digunakan oleh scraper utama (`procurementList.js`, `pelelangan.js`) untuk berinteraksi dengan database SQLite (`database.db`).
+*   **`src/utils/helpers.js`**: Menyediakan fungsi `removeDuplicates` yang digunakan oleh scraper utama.
 *   **`src/download pdf/`**: Direktori tempat file PDF yang berhasil diunduh oleh `downloadPDFsPlaywright.js` disimpan. 

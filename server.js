@@ -6,6 +6,39 @@ const { getDb, closeDb } = require('./src/utils/database'); // Sesuaikan path ji
 const app = express();
 const port = 3000;
 
+// --- Fungsi Bantuan Baru untuk Cek Batas Waktu ---
+// Mengubah "DD Mon YYYY" menjadi objek Date
+function parseBatasWaktu(dateStr) {
+    if (!dateStr) return null;
+    const parts = dateStr.split(' ');
+    if (parts.length !== 3) return null;
+    const day = parseInt(parts[0], 10);
+    const monthMap = {
+        'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+        'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+    };
+    const month = monthMap[parts[1]];
+    const year = parseInt(parts[2], 10);
+    if (isNaN(day) || month === undefined || isNaN(year)) return null;
+    // Set ke awal hari untuk perbandingan yang konsisten
+    const date = new Date(year, month, day);
+    date.setHours(0, 0, 0, 0);
+    return date;
+}
+
+// Mengecek apakah tanggal batas waktu sudah lewat
+function checkIsExpired(batasWaktuStr) {
+    const deadlineDate = parseBatasWaktu(batasWaktuStr);
+    if (!deadlineDate) {
+        return false; // Jika format tanggal tidak valid, anggap belum expired
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set ke awal hari ini
+
+    return deadlineDate < today; // Jika deadline < hari ini, maka sudah expired
+}
+// --- Akhir Fungsi Bantuan ---
+
 // --- Direktori PDF Lokal ---
 const localPdfDir = path.join(__dirname, 'src', 'download pdf');
 console.log("Mengecek direktori PDF lokal:", localPdfDir);
@@ -59,6 +92,7 @@ app.get('/local-pdfs/:filename', (req, res) => {
 // Route utama untuk menampilkan tender
 app.get('/', (req, res) => {
   const db = getDb();
+  // Ambil semua kolom yang relevan, termasuk batasWaktu
   const sql = 'SELECT id, judul, tanggal, batasWaktu, kkks, bidangUsaha, url, attachmentUrl, attachmentName, tipe_tender, createdAt FROM procurement_list ORDER BY createdAt DESC';
 
   // Pagination setup
@@ -74,37 +108,39 @@ app.get('/', (req, res) => {
       return;
     }
 
-    // --- Modifikasi Data Tender untuk Menyertakan Path PDF Lokal --- 
-    const addLocalPdfPath = (tender) => {
+    // --- Modifikasi Data Tender ---
+    const processTenderData = (tender) => {
+        let processedTender = { ...tender }; // Salin objek tender
+
+        // 1. Tambahkan Path PDF Lokal (kode dari sebelumnya)
         let pdfFilename = tender.attachmentName;
-        // Coba sanitasi nama file seperti di helper (jika perlu)
         if (pdfFilename) {
             pdfFilename = pdfFilename.replace(/[\\/?:*"<>|]/g, '-').replace(/\s+/g, '_');
             const potentialPath = path.join(localPdfDir, pdfFilename);
             if (fs.existsSync(potentialPath)) {
-                return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(pdfFilename)}` };
+                processedTender.localPdfPath = `/local-pdfs/${encodeURIComponent(pdfFilename)}`;
             }
         }
-        // Fallback: Coba cari berdasarkan ID jika attachmentName tidak cocok/tidak ada
-        // Ini memerlukan konvensi nama file yang konsisten saat diunduh.
-        // Contoh: Jika file disimpan sebagai `attachment_{id}.pdf`
+        // Fallback PDF Path (kode dari sebelumnya, jika diperlukan)
         const fallbackFilename = `attachment_${tender.id}.pdf`;
         const fallbackPath = path.join(localPdfDir, fallbackFilename);
-        if (tender.id && fs.existsSync(fallbackPath)) {
-             console.log(`[PDF Check] File untuk ${tender.judul} tidak ditemukan dengan nama asli, menggunakan fallback ID: ${fallbackFilename}`) 
-             return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(fallbackFilename)}` };
+         if (!processedTender.localPdfPath && tender.id && fs.existsSync(fallbackPath)) {
+             console.log(`[PDF Check] File untuk ${tender.judul} tidak ditemukan dengan nama asli, menggunakan fallback ID: ${fallbackFilename}`)
+             processedTender.localPdfPath = `/local-pdfs/${encodeURIComponent(fallbackFilename)}`;
         }
-        
-        // Jika tidak ditemukan, kembalikan objek asli tanpa localPdfPath
-        return tender;
+
+        // 2. Tambahkan Flag isExpired
+        processedTender.isExpired = checkIsExpired(tender.batasWaktu);
+
+        return processedTender;
     };
 
-    const allRowsWithPdf = allRows.map(addLocalPdfPath);
-    // -----------------------------------------------------------
+    const allRowsProcessed = allRows.map(processTenderData);
+    // --- Akhir Modifikasi Data Tender ---
 
-    // Pisahkan data berdasarkan tipe tender (setelah ditambahkan path PDF)
-    const prakualifikasiTenders = allRowsWithPdf.filter(row => row.tipe_tender === 'Prakualifikasi');
-    const pelelanganTenders = allRowsWithPdf.filter(row => row.tipe_tender === 'Pelelangan Umum');
+    // Pisahkan data berdasarkan tipe tender (setelah diproses)
+    const prakualifikasiTenders = allRowsProcessed.filter(row => row.tipe_tender === 'Prakualifikasi');
+    const pelelanganTenders = allRowsProcessed.filter(row => row.tipe_tender === 'Pelelangan Umum');
 
     // Hitung total halaman untuk masing-masing tipe
     const totalPagesPrak = Math.ceil(prakualifikasiTenders.length / itemsPerPage);
@@ -134,7 +170,7 @@ app.get('/', (req, res) => {
 // Route untuk Dashboard
 app.get('/dashboard', (req, res) => {
     const db = getDb();
-    const sql = 'SELECT id, judul, createdAt, tipe_tender, batasWaktu, attachmentName FROM procurement_list ORDER BY createdAt DESC'; 
+    const sql = 'SELECT id, judul, createdAt, tipe_tender, batasWaktu, attachmentName FROM procurement_list ORDER BY createdAt DESC';
 
     db.all(sql, [], (err, allRows) => {
         // Log 1: Cek Error Database
@@ -186,39 +222,49 @@ app.get('/dashboard', (req, res) => {
         // Log 5: Cek Event Setelah Filter
         console.log(`>>> Event setelah filter (valid): ${calendarEvents.length} item`);
 
-        // --- Modifikasi Data Tender untuk Menyertakan Path PDF Lokal (Sama seperti di route /) --- 
-        const addLocalPdfPath = (tender) => {
+        // --- Modifikasi Data Tender untuk Dashboard ---
+        const processTenderDataDashboard = (tender) => {
+             let processedTender = { ...tender }; // Salin objek tender
+
+            // 1. Tambahkan Path PDF Lokal (kode dari sebelumnya)
             let pdfFilename = tender.attachmentName;
             if (pdfFilename) {
                 pdfFilename = pdfFilename.replace(/[\\/?:*"<>|]/g, '-').replace(/\s+/g, '_');
                 const potentialPath = path.join(localPdfDir, pdfFilename);
                 if (fs.existsSync(potentialPath)) {
-                    return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(pdfFilename)}` };
+                    processedTender.localPdfPath = `/local-pdfs/${encodeURIComponent(pdfFilename)}`;
                 }
             }
+             // Fallback PDF Path (jika diperlukan)
             const fallbackFilename = `attachment_${tender.id}.pdf`;
             const fallbackPath = path.join(localPdfDir, fallbackFilename);
-             if (tender.id && fs.existsSync(fallbackPath)) {
-                 console.log(`[PDF Check Dashboard] File untuk ${tender.judul} tidak ditemukan dengan nama asli, menggunakan fallback ID: ${fallbackFilename}`) 
-                 return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(fallbackFilename)}` };
+             if (!processedTender.localPdfPath && tender.id && fs.existsSync(fallbackPath)) {
+                 console.log(`[PDF Check Dashboard] File untuk ${tender.judul} tidak ditemukan dengan nama asli, menggunakan fallback ID: ${fallbackFilename}`)
+                 processedTender.localPdfPath = `/local-pdfs/${encodeURIComponent(fallbackFilename)}`;
             }
-            return tender;
+
+            // 2. Tambahkan Flag isExpired
+            processedTender.isExpired = checkIsExpired(tender.batasWaktu);
+
+            return processedTender;
         };
-        // -------------------------------------------------------------------------
+
+        // Proses semua data untuk statistik dan ambil 5 terbaru yang sudah diproses
+         const allRowsProcessedDashboard = allRows ? allRows.map(processTenderDataDashboard) : [];
+        const latestTendersProcessed = allRowsProcessedDashboard.slice(0, 5);
+        // --- Akhir Modifikasi Data Tender untuk Dashboard ---
 
         // Hitung statistik
         const totalTenders = allRows ? allRows.length : 0;
         const totalPrakualifikasi = allRows ? allRows.filter(row => row.tipe_tender === 'Prakualifikasi').length : 0;
         const totalPelelangan = allRows ? allRows.filter(row => row.tipe_tender === 'Pelelangan Umum').length : 0;
-        // Ambil data terbaru *setelah* menambahkan path PDF
-        const latestTendersWithPdf = allRows ? allRows.map(addLocalPdfPath).slice(0, 5) : []; 
 
         // Data yang akan dikirim ke view dashboard
         const dashboardData = {
             totalTenders: totalTenders,
             totalPrakualifikasi: totalPrakualifikasi,
             totalPelelangan: totalPelelangan,
-            latestTenders: latestTendersWithPdf, 
+            latestTenders: latestTendersProcessed, 
             calendarEvents: calendarEvents 
         };
 

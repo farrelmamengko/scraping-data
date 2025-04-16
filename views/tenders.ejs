@@ -270,6 +270,18 @@
             text-decoration: none;
         }
 
+        /* Gaya untuk label Expired */
+        .expired-label {
+            background-color: #dc3545; /* Warna merah standar untuk danger/warning */
+            color: #ffffff;
+            font-size: 0.75em;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-left: 8px; /* Jarak dari batas waktu */
+            vertical-align: middle; /* Sejajarkan dengan teks */
+        }
+
     </style>
 </head>
 <body>
@@ -291,7 +303,11 @@
                         <h5><%= tender.judul %></h5>
                         <p class="tender-meta">
                             <span>📅 <strong>Tayang:</strong> <%= tender.tanggal %></span> 
-                            <span>⏱️ <strong>Batas:</strong> <%= tender.batasWaktu %></span> <br>
+                            <span>⏱️ <strong>Batas:</strong> <%= tender.batasWaktu %></span>
+                            <% if (tender.isExpired) { %>
+                                <span class="expired-label">Expired</span>
+                            <% } %>
+                            <br>
                             <span>🏢 <strong>KKKS:</strong> <%= tender.kkks %></span>
                         </p>
                         <div class="tender-field">
@@ -371,7 +387,11 @@
                         <h5><%= tender.judul %></h5>
                         <p class="tender-meta">
                             <span>📅 <strong>Tayang:</strong> <%= tender.tanggal %></span> 
-                            <span>⏱️ <strong>Batas:</strong> <%= tender.batasWaktu %></span> <br>
+                            <span>⏱️ <strong>Batas:</strong> <%= tender.batasWaktu %></span>
+                            <% if (tender.isExpired) { %>
+                                <span class="expired-label">Expired</span>
+                            <% } %>
+                            <br>
                             <span>🏢 <strong>KKKS:</strong> <%= tender.kkks %></span>
                         </p>
                         <div class="tender-field">

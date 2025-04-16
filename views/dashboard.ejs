@@ -145,6 +145,18 @@
         .fc-event-title {
             font-weight: 500;
         }
+
+        /* Gaya untuk label Expired (ditambahkan) */
+        .expired-label {
+            background-color: #dc3545;
+            color: #ffffff;
+            font-size: 0.75em;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-left: 10px; /* Jarak dari elemen sebelumnya */
+            vertical-align: middle;
+        }
     </style>
 </head>
 <body>
@@ -187,8 +199,11 @@
                         <span class="tender-type <%= tender.tipe_tender === 'Prakualifikasi' ? 'prakualifikasi' : 'pelelangan' %>">
                             <%= tender.tipe_tender %>
                         </span>
+                         <% if (tender.isExpired) { %>
+                            <span class="expired-label">Expired</span>
+                        <% } %>
                     </div>
-                    <span class="tender-date">Dibuat: <%= new Date(tender.createdAt).toLocaleDateString('id-ID') %></span>
+                    <span class="tender-date">Batas: <%= tender.batasWaktu || 'N/A' %> | Dibuat: <%= new Date(tender.createdAt).toLocaleDateString('id-ID') %></span>
                 </li>
             <% }); %>
         </ul>
