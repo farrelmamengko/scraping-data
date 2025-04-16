@@ -39,6 +39,22 @@ function checkIsExpired(batasWaktuStr) {
 }
 // --- Akhir Fungsi Bantuan ---
 
+// --- Fungsi Bantuan Baru untuk Cek Apakah Baru ---
+function checkIsNew(createdAtStr) {
+    if (!createdAtStr) return false;
+    try {
+        const createdAtDate = new Date(createdAtStr);
+        const now = new Date();
+        const timeDifference = now.getTime() - createdAtDate.getTime();
+        const hoursDifference = timeDifference / (1000 * 60 * 60);
+        return hoursDifference < 24; // Kurang dari 24 jam
+    } catch (e) {
+        console.error("Error parsing createdAt date:", createdAtStr, e);
+        return false; // Jika error parsing, anggap tidak baru
+    }
+}
+// --- Akhir Fungsi Bantuan ---
+
 // --- Direktori PDF Lokal ---
 const localPdfDir = path.join(__dirname, 'src', 'download pdf');
 console.log("Mengecek direktori PDF lokal:", localPdfDir);
@@ -131,6 +147,9 @@ app.get('/', (req, res) => {
 
         // 2. Tambahkan Flag isExpired
         processedTender.isExpired = checkIsExpired(tender.batasWaktu);
+
+        // 3. Tambahkan Flag isNew (BARU)
+        processedTender.isNew = checkIsNew(tender.createdAt);
 
         return processedTender;
     };
@@ -245,6 +264,9 @@ app.get('/dashboard', (req, res) => {
 
             // 2. Tambahkan Flag isExpired
             processedTender.isExpired = checkIsExpired(tender.batasWaktu);
+
+            // 3. Tambahkan Flag isNew (BARU)
+            processedTender.isNew = checkIsNew(tender.createdAt);
 
             return processedTender;
         };

@@ -282,6 +282,18 @@
             vertical-align: middle; /* Sejajarkan dengan teks */
         }
 
+        /* Gaya untuk label New (BARU) */
+        .new-label {
+            background-color: #28a745; /* Warna hijau */
+            color: #ffffff;
+            font-size: 0.75em;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
     </style>
 </head>
 <body>
@@ -300,7 +312,12 @@
             <div class="tender-grid">
                 <% prakualifikasiTenders.forEach(tender => { %>
                     <div class="tender-card">
-                        <h5><%= tender.judul %></h5>
+                        <h5>
+                            <%= tender.judul %>
+                            <% if (tender.isNew) { %>
+                                <span class="new-label">New</span>
+                            <% } %>
+                        </h5>
                         <p class="tender-meta">
                             <span>📅 <strong>Tayang:</strong> <%= tender.tanggal %></span> 
                             <span>⏱️ <strong>Batas:</strong> <%= tender.batasWaktu %></span>
@@ -384,7 +401,12 @@
             <div class="tender-grid">
                 <% pelelanganTenders.forEach(tender => { %>
                     <div class="tender-card">
-                        <h5><%= tender.judul %></h5>
+                        <h5>
+                            <%= tender.judul %>
+                            <% if (tender.isNew) { %>
+                                <span class="new-label">New</span>
+                            <% } %>
+                        </h5>
                         <p class="tender-meta">
                             <span>📅 <strong>Tayang:</strong> <%= tender.tanggal %></span> 
                             <span>⏱️ <strong>Batas:</strong> <%= tender.batasWaktu %></span>
