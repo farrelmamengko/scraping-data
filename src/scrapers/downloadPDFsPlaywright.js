@@ -36,6 +36,7 @@ async function downloadPdfsWithPlaywright(allTenders) {
   let successCount = 0;
   let failCount = 0; // Untuk tender yang tombolnya tidak ditemukan di SEMUA halaman
   let notFoundThisPageCount = 0; // Untuk tender yang tidak ditemukan di halaman spesifik (sementara)
+  let skippedCount = 0; // Counter baru untuk file yang dilewati
 
   try {
     // 1. Setup Playwright
@@ -89,27 +90,41 @@ async function downloadPdfsWithPlaywright(allTenders) {
       
       // Unduh semua tender yang ditemukan di halaman ini
       if(tendersFoundOnPage.length > 0){
-          console.log(`  [Playwright Downloader] Mengunduh ${tendersFoundOnPage.length} PDF yang ditemukan di Halaman ${currentPageNum}...`);
+          console.log(`  [Playwright Downloader] Memproses ${tendersFoundOnPage.length} PDF yang ditemukan di Halaman ${currentPageNum}...`);
           for(const tender of tendersFoundOnPage){
               const downloadSelector = `a.download-btn[data-file-id="${tender.id}"]`;
                try {
                    const downloadElement = page.locator(downloadSelector).first();
                    const downloadPromise = page.waitForEvent('download', { timeout: 60000 });
                    await downloadElement.click();
+                   console.log(`    [Playwright Downloader] Menunggu unduhan internal untuk ${tender.attachmentName}...`);
                    const download = await downloadPromise;
+                   
+                   // --- Pengecekan File Duplikat --- 
                    const sanitizedFilename = sanitizeFilename(tender.attachmentName);
                    const savePath = path.join(downloadPath, sanitizedFilename);
-                   await download.saveAs(savePath);
-                   console.log(`    ✅ Berhasil disimpan: ${sanitizedFilename}`);
-                   successCount++;
-                   // Opsional: cek ukuran
-                   // const stats = fs.statSync(savePath);
-                   // if (stats.size < 1000) console.warn(...);
+                   
+                   if (fs.existsSync(savePath)) {
+                       console.log(`    ⏭️ Dilewati (sudah ada): ${sanitizedFilename}`);
+                       skippedCount++; // Increment skipped counter
+                   } else {
+                       // Simpan file jika belum ada
+                       await download.saveAs(savePath);
+                       console.log(`    ✅ Berhasil disimpan: ${sanitizedFilename}`);
+                       successCount++; // Increment success counter
+                       // Opsional: cek ukuran
+                       const stats = fs.statSync(savePath);
+                       if (stats.size < 1000) {
+                           console.warn(`      ⚠️ Ukuran file ${sanitizedFilename} sangat kecil, mungkin halaman error?`);
+                       }
+                   }
+                   // ----------------------------------
+
                } catch (downloadError) {
-                   console.error(`    ❌ Gagal mengunduh ID ${tender.id} (${tender.attachmentName}) setelah tombol diklik: ${downloadError.message.split('\n')[0]}`);
+                   console.error(`    ❌ Gagal proses unduhan untuk ID ${tender.id} (${tender.attachmentName}) setelah tombol diklik: ${downloadError.message.split('\n')[0]}`);
                    failCount++; // Hitung sebagai gagal jika error setelah klik
                } finally {
-                   await new Promise(resolve => setTimeout(resolve, 1500)); // Delay antar unduhan
+                   await new Promise(resolve => setTimeout(resolve, 1000)); // Perkecil delay antar unduhan di halaman yang sama
                }
           }
       } else {
@@ -151,6 +166,8 @@ async function downloadPdfsWithPlaywright(allTenders) {
             break; // Keluar jika kontainer tidak muncul
         }
         currentPageNum++;
+        // Tambah delay sedikit sebelum memproses halaman berikutnya
+        await new Promise(resolve => setTimeout(resolve, 500)); 
       }
     } // Akhir loop while
 
@@ -161,7 +178,7 @@ async function downloadPdfsWithPlaywright(allTenders) {
         failCount += tendersToDownload.length;
     }
 
-    console.log(`\n[Playwright Downloader] Ringkasan Unduhan Akhir: ${successCount} berhasil, ${failCount} gagal/tidak ditemukan.`);
+    console.log(`\n[Playwright Downloader] Ringkasan Unduhan Akhir: ${successCount} berhasil disimpan, ${skippedCount} dilewati (sudah ada), ${failCount} gagal/tidak ditemukan.`);
 
   } catch (error) {
     console.error("[Playwright Downloader] Terjadi error utama:", error);
