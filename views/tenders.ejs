@@ -299,20 +299,26 @@
                             <p><%= tender.bidangUsaha %></p>
                         </div>
                         <div class="tender-actions">
-                            <button class="btn btn-detail"
-                                    data-id="<%= tender.id %>"
-                                    data-judul="<%= tender.judul %>"
-                                    data-tanggal="<%= tender.tanggal %>"
-                                    data-batas="<%= tender.batasWaktu %>"
-                                    data-kkks="<%= tender.kkks %>"
-                                    data-bidang="<%= tender.bidangUsaha %>"
-                                    data-tipe="Prakualifikasi"
-                                    data-attachment-url="<%= tender.attachmentUrl %>"
-                                    data-attachment-name="<%= tender.attachmentName %>">
-                                ℹ️ Detail
+                            <button class="btn btn-detail" data-bs-toggle="modal" data-bs-target="#tenderModal"
+                                data-id="<%= tender.id %>"
+                                data-judul="<%= tender.judul %>"
+                                data-tanggal="<%= tender.tanggal %>"
+                                data-batas-waktu="<%= tender.batasWaktu %>"
+                                data-kkks="<%= tender.kkks %>"
+                                data-bidang-usaha="<%= tender.bidangUsaha %>"
+                                data-attachment-name="<%= tender.attachmentName || '-' %>"
+                                data-tipe-tender="<%= tender.tipe_tender %>"
+                                data-attachment-url="<%= tender.attachmentUrl || '#' %>"
+                                data-local-pdf="<%= tender.localPdfPath || '' %>">
+                                <i class="fas fa-info-circle"></i> Detail
                             </button>
-                            <% if (tender.attachmentUrl && tender.attachmentName) { %>
-                                <a href="<%= tender.attachmentUrl %>" target="_blank" class="btn btn-attachment">📎 <%= tender.attachmentName %></a>
+                            <% if (tender.attachmentUrl || tender.localPdfPath) { %>
+                                <a href="<%= tender.localPdfPath || '#' %>" 
+                                   class="btn btn-attachment <%= !tender.localPdfPath ? 'disabled' : '' %>" 
+                                   target="_blank" 
+                                   <%= !tender.localPdfPath ? 'aria-disabled="true" title="PDF tidak ditemukan secara lokal"' : `title="Buka ${tender.attachmentName || 'PDF'}"` %>>
+                                    <i class="fas fa-file-pdf"></i> <%= tender.attachmentName || 'Download PDF' %>
+                                </a>
                             <% } %>
                         </div>
                     </div>

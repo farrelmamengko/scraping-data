@@ -1,6 +1,100 @@
-# CIVD SKK Migas Scraper
+# Sistem Scraping & Dashboard Tender SKK Migas
 
-Aplikasi untuk scraping data tender (Undangan Prakualifikasi dan Pelelangan Umum) dari website CIVD SKK Migas.
+## 1. Ikhtisar Proyek
+
+Proyek ini adalah aplikasi Node.js yang dirancang untuk:
+
+1.  **Mengambil (scrape)** data pengadaan tender secara otomatis dari situs web Centralized Integrated Vendor Database (CIVD) SKK Migas.
+2.  Mengambil dua jenis tender utama: **Undangan Prakualifikasi** dan **Pelelangan Umum**.
+3.  **Menyimpan** data yang telah di-scrape ke dalam database SQLite lokal.
+4.  **Menyajikan** data tersebut melalui **antarmuka web (webapp)** yang interaktif, menampilkan daftar tender dengan pagination, detail tender dalam modal popup, dan sebuah dashboard ringkasan.
+
+## 2. Fitur Utama
+
+*   **Scraping Otomatis**: Mengambil data dari sumber web yang relevan.
+*   **Dua Jenis Tender**: Mendukung pengambilan data Prakualifikasi dan Pelelangan Umum.
+*   **Penyimpanan Database**: Menggunakan SQLite untuk persistensi data yang efisien.
+*   **Web Interface**: Menampilkan data melalui server web Express dengan template EJS.
+*   **Tampilan Kartu Tender**: Menyajikan data tender dalam format kartu yang informatif dan visual.
+*   **Pagination**: Membagi daftar tender yang panjang menjadi beberapa halaman (6 item per halaman) untuk kemudahan navigasi.
+*   **Modal Detail**: Menampilkan detail ringkas tender dalam jendela popup saat tombol "Detail" diklik.
+*   **Dashboard Ringkasan**: Halaman terpisah (`/dashboard`) yang menampilkan:
+    *   Statistik jumlah total tender, jumlah per jenis.
+    *   Daftar 5 tender terbaru yang ditambahkan.
+    *   Kalender interaktif yang menandai tanggal **batas waktu (deadline)** tender.
+*   **Pemisahan Kode**: Struktur folder yang terorganisir untuk scrapers, utilitas, views, dan tes.
+*   **Tanggal Scraping sebagai Tanggal Tayang**: Kolom "Tanggal Tayang" di database dan UI diisi dengan tanggal saat data tersebut berhasil di-scrape.
+
+## 3. Arsitektur & Komponen
+
+Sistem ini terdiri dari beberapa komponen utama:
+
+*   **Scrapers (`src/scrapers/`)**: Bertugas mengambil data.
+    *   `procurementList.js`: Untuk Undangan Prakualifikasi.
+    *   `pelelangan.js`: Untuk Pelelangan Umum.
+*   **Database Utility (`src/utils/database.js`)**: Mengelola koneksi dan operasi database SQLite (`database.db`). Menyediakan fungsi `insertProcurementData`.
+*   **Helper Utility (`src/utils/helpers.js`)**: Berisi fungsi pendukung (misalnya, `removeDuplicates`).
+*   **Server (`server.js`)**: Server web Express yang menangani request, mengambil data dari database, dan merender halaman.
+*   **Views (`views/`)**: File template EJS untuk antarmuka pengguna.
+    *   `tenders.ejs`: Halaman utama menampilkan daftar tender (dengan kartu dan pagination).
+    *   `dashboard.ejs`: Halaman dashboard dengan ringkasan, kalender, dan tender terbaru.
+*   **Database File (`database.db`)**: File SQLite tempat data tender disimpan.
+*   **Tests (`src/tests/`)**: Berisi file untuk pengujian fungsi scraper (implementasi tes saat ini mungkin perlu diperbarui).
+
+## 4. Pengaturan & Instalasi
+
+1.  **Prasyarat**: Pastikan Anda memiliki Node.js dan npm (atau yarn) terinstal di sistem Anda.
+2.  **Clone Repository**: Dapatkan kode proyek ini.
+3.  **Instal Dependensi**: Buka terminal di direktori root proyek dan jalankan:
+    ```bash
+    npm install
+    ```
+    Ini akan menginstal library yang diperlukan seperti `express`, `axios`, `cheerio`, `sqlite3`, `ejs`, dll.
+4.  **Inisialisasi Database**: Database (`database.db`) dan tabel (`procurement_list`) akan dibuat secara otomatis saat server atau scraper pertama kali dijalankan (melalui `initializeDb` di `database.js`).
+
+## 5. Menjalankan Aplikasi
+
+### a. Menjalankan Scrapers (Untuk Mengisi/Memperbarui Database)
+
+**Penting:** Jalankan scraper satu per satu dan pastikan tidak ada aplikasi lain (seperti DB Browser) yang mengunci file `database.db`.
+
+1.  **Jalankan Scraper Prakualifikasi:**
+    ```bash
+    node src/scrapers/procurementList.js
+    ```
+2.  **Jalankan Scraper Pelelangan Umum:**
+    ```bash
+    node src/scrapers/pelelangan.js
+    ```
+
+Menjalankan scraper akan mengambil data terbaru dari CIVD dan menyimpannya ke `database.db`. Kolom `tanggal` akan diisi dengan waktu scraping saat ini.
+
+### b. Menjalankan Web Server (Untuk Melihat Data)
+
+1.  Jalankan server Express:
+    ```bash
+    node server.js
+    ```
+2.  Buka browser Anda dan akses:
+    *   **Daftar Tender Utama**: `http://localhost:3000/`
+    *   **Dashboard**: `http://localhost:3000/dashboard`
+
+## 6. Detail Fungsi & Fitur
+
+*   **Halaman Utama (`/`)**: Menampilkan daftar tender Prakualifikasi dan Pelelangan Umum dalam section terpisah. Setiap section menggunakan layout kartu dan memiliki kontrol pagination di bawahnya jika data melebihi 6 item. Mengklik tombol "Detail" pada kartu akan membuka modal popup.
+*   **Halaman Dashboard (`/dashboard`)**: Menampilkan ringkasan jumlah tender, daftar 5 tender terbaru, dan kalender interaktif yang menandai tanggal deadline (`batasWaktu`) tender.
+*   **Modal Detail**: Popup yang muncul saat tombol "Detail" diklik, menampilkan informasi ringkas tender (judul, tanggal tayang (scraping), batas waktu, KKKS, bidang usaha, attachment).
+*   **Kalender Deadline**: Kalender di dashboard menggunakan `batasWaktu` tender untuk menandai tanggal penting.
+
+## 7. Catatan & Potensi Pengembangan
+
+*   **Database Locking**: Jika Anda mendapatkan error `SQLITE_BUSY`, pastikan tidak ada proses lain yang mengakses `database.db`.
+*   **Update Data**: Scraper saat ini menggunakan `INSERT OR IGNORE`. Data lama di database tidak akan diperbarui jika hanya kontennya yang berubah (kecuali ID-nya). Untuk memperbarui, kosongkan tabel (`DELETE FROM procurement_list;` via DB Browser lalu `Write Changes`) dan jalankan ulang scraper.
+*   **Filter Kata Kunci**: Fitur selanjutnya bisa berupa penambahan filter berdasarkan kata kunci di halaman utama atau dashboard untuk menampilkan tender yang relevan dengan bidang usaha tertentu.
+*   **Deskripsi Detail**: Modal saat ini menampilkan bidang usaha sebagai deskripsi. Untuk menampilkan deskripsi pekerjaan yang sangat panjang seperti di situs aslinya, scraper perlu dimodifikasi untuk mengambil teks tersebut dan skema database perlu disesuaikan.
+*   **Penjadwalan Otomatis**: Gunakan `node-cron` atau penjadwal sistem operasi untuk menjalankan scraper secara berkala.
+*   **Error Handling & Logging**: Tingkatkan penanganan error dan standarisasi format log untuk pemantauan yang lebih baik.
+*   **Pemisahan CSS/JS**: Pindahkan kode CSS dan JavaScript dari file EJS ke file statis terpisah di folder `public/` untuk organisasi yang lebih baik.
 
 ## Instalasi
 

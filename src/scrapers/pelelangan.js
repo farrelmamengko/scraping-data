@@ -3,9 +3,10 @@ const cheerio = require('cheerio');
 // const { PATHS, getScraperApiUrl } = require('../utils/config'); // Tidak digunakan lagi
 // const { scrapWithPuppeteer, scrapMultiPageWithPuppeteer } = require('../utils/puppeteerScraper'); // Dihapus
 // const puppeteer = require('puppeteer'); // Tidak digunakan di versi ini
-const { removeDuplicates } = require('../utils/helpers');
+const { removeDuplicates } = require('../utils/helpers'); // Hanya removeDuplicates
 const qs = require('qs'); // Import library qs untuk format form data
 const { insertProcurementData } = require('../utils/database'); // Import insertProcurementData
+const { downloadPdfsWithPlaywright } = require('./downloadPDFsPlaywright'); // Import Playwright downloader
 // Hapus import PaginationHandler
 // const PaginationHandler = require('../utils/paginationHandler');
 
@@ -84,10 +85,10 @@ function extractPelelanganFromHtml($) {
       const attachmentLink = cardBody.find('a.download-btn');
       let attachments = [];
       attachmentLink.each((idx, link) => {
-          const attachUrl = $(link).attr('href');
+          const attachUrl = $(link).attr('data-url') || $(link).attr('href');
           // Ambil nama dari data-name jika ada, fallback ke teks link
           const attachName = $(link).attr('data-name') || $(link).text().replace(/<i[^>]*><\/i>\s*/, '').trim();
-          if(attachUrl && attachName) {
+          if(attachUrl && attachName && !attachUrl.startsWith('javascript:')) {
               attachments.push({ url: attachUrl, name: attachName });
           }
       });
@@ -177,8 +178,21 @@ async function scrapePelelangan() {
     // Simpan data ke database
     if (uniquePelelangan.length > 0) {
         console.log('Menyimpan data Pelelangan Umum ke database...');
-        insertProcurementData(uniquePelelangan, 'Pelelangan Umum');
-        console.log('Perintah penyimpanan data Pelelangan Umum dikirim.');
+        await insertProcurementData(uniquePelelangan, 'Pelelangan Umum');
+        console.log('Data Pelelangan Umum berhasil disimpan ke database.');
+
+        // Panggil Playwright untuk mengunduh PDF setelah data disimpan
+        console.log('[Pelelangan] Memulai pengunduhan PDF dengan Playwright...');
+        try {
+            await downloadPdfsWithPlaywright(uniquePelelangan); // Kirim data tender
+            console.log('[Pelelangan] Proses pengunduhan PDF dengan Playwright selesai.');
+        } catch (playwrightError) {
+            console.error('[Pelelangan] Terjadi error saat menjalankan pengunduhan Playwright:', playwrightError);
+        }
+        //-------------------------------------------------------------
+
+    } else {
+        console.log('Tidak ada data Pelelangan Umum unik untuk disimpan atau diunduh.');
     }
 
     return uniquePelelangan;
@@ -202,4 +216,11 @@ module.exports = {
 }; 
 
 // Panggil fungsi untuk menjalankannya saat script dieksekusi langsung
-scrapePelelangan(); 
+(async () => {
+    try {
+        await scrapePelelangan();
+    } catch (error) {
+        console.error("Gagal menjalankan scraper Pelelangan Umum:", error);
+        process.exit(1); // Keluar dengan kode error
+    }
+})(); // Ubah menjadi IIFE async 

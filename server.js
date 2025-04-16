@@ -1,9 +1,18 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs'); // Tambahkan fs
 const { getDb, closeDb } = require('./src/utils/database'); // Sesuaikan path jika perlu
 
 const app = express();
 const port = 3000;
+
+// --- Direktori PDF Lokal ---
+const localPdfDir = path.join(__dirname, 'src', 'download pdf');
+console.log("Mengecek direktori PDF lokal:", localPdfDir);
+if (!fs.existsSync(localPdfDir)) {
+    console.warn("PERINGATAN: Direktori PDF lokal tidak ditemukan. Buat secara manual atau jalankan scraper.");
+}
+// --------------------------
 
 // Setup EJS
 app.set('view engine', 'ejs');
@@ -12,10 +21,45 @@ app.set('views', path.join(__dirname, 'views'));
 // Middleware (jika diperlukan di masa mendatang)
 app.use(express.static(path.join(__dirname, 'public'))); // Untuk file statis seperti CSS/JS eksternal
 
+// --- Route Baru untuk Menyajikan PDF Lokal ---
+app.get('/local-pdfs/:filename', (req, res) => {
+  const filename = req.params.filename;
+  // Validasi sederhana: hanya izinkan .pdf dan cegah path traversal
+  if (!filename.endsWith('.pdf') || filename.includes('..')) {
+    return res.status(400).send('Nama file tidak valid.');
+  }
+
+  const filePath = path.join(localPdfDir, filename);
+
+  // Cek apakah file ada sebelum mengirim
+  fs.access(filePath, fs.constants.R_OK, (err) => {
+    if (err) {
+      console.error(`Error akses file PDF: ${filePath}`, err);
+      return res.status(404).send('File PDF tidak ditemukan.');
+    }
+    // Kirim file
+    // Set header Content-Type secara eksplisit
+    res.setHeader('Content-Type', 'application/pdf');
+    res.sendFile(filePath, (errSend) => {
+        if(errSend) {
+            console.error(`Error mengirim file PDF: ${filePath}`, errSend);
+            // Jangan kirim respons lagi jika header sudah terkirim
+            if (!res.headersSent) {
+                 res.status(500).send('Gagal mengirim file PDF.');
+            }
+        } else {
+            // Tambahkan log sukses
+            console.log(`[Server] Berhasil mengirim file PDF: ${filePath}`);
+        }
+    });
+  });
+});
+// -------------------------------------------
+
 // Route utama untuk menampilkan tender
 app.get('/', (req, res) => {
   const db = getDb();
-  const sql = 'SELECT id, judul, tanggal, batasWaktu, kkks, bidangUsaha, url, attachmentUrl, attachmentName, tipe_tender FROM procurement_list ORDER BY createdAt DESC';
+  const sql = 'SELECT id, judul, tanggal, batasWaktu, kkks, bidangUsaha, url, attachmentUrl, attachmentName, tipe_tender, createdAt FROM procurement_list ORDER BY createdAt DESC';
 
   // Pagination setup
   const currentPage = parseInt(req.query.page || '1', 10);
@@ -30,9 +74,37 @@ app.get('/', (req, res) => {
       return;
     }
 
-    // Pisahkan data berdasarkan tipe tender
-    const prakualifikasiTenders = allRows.filter(row => row.tipe_tender === 'Prakualifikasi');
-    const pelelanganTenders = allRows.filter(row => row.tipe_tender === 'Pelelangan Umum');
+    // --- Modifikasi Data Tender untuk Menyertakan Path PDF Lokal --- 
+    const addLocalPdfPath = (tender) => {
+        let pdfFilename = tender.attachmentName;
+        // Coba sanitasi nama file seperti di helper (jika perlu)
+        if (pdfFilename) {
+            pdfFilename = pdfFilename.replace(/[\\/?:*"<>|]/g, '-').replace(/\s+/g, '_');
+            const potentialPath = path.join(localPdfDir, pdfFilename);
+            if (fs.existsSync(potentialPath)) {
+                return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(pdfFilename)}` };
+            }
+        }
+        // Fallback: Coba cari berdasarkan ID jika attachmentName tidak cocok/tidak ada
+        // Ini memerlukan konvensi nama file yang konsisten saat diunduh.
+        // Contoh: Jika file disimpan sebagai `attachment_{id}.pdf`
+        const fallbackFilename = `attachment_${tender.id}.pdf`;
+        const fallbackPath = path.join(localPdfDir, fallbackFilename);
+        if (tender.id && fs.existsSync(fallbackPath)) {
+             console.log(`[PDF Check] File untuk ${tender.judul} tidak ditemukan dengan nama asli, menggunakan fallback ID: ${fallbackFilename}`) 
+             return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(fallbackFilename)}` };
+        }
+        
+        // Jika tidak ditemukan, kembalikan objek asli tanpa localPdfPath
+        return tender;
+    };
+
+    const allRowsWithPdf = allRows.map(addLocalPdfPath);
+    // -----------------------------------------------------------
+
+    // Pisahkan data berdasarkan tipe tender (setelah ditambahkan path PDF)
+    const prakualifikasiTenders = allRowsWithPdf.filter(row => row.tipe_tender === 'Prakualifikasi');
+    const pelelanganTenders = allRowsWithPdf.filter(row => row.tipe_tender === 'Pelelangan Umum');
 
     // Hitung total halaman untuk masing-masing tipe
     const totalPagesPrak = Math.ceil(prakualifikasiTenders.length / itemsPerPage);
@@ -62,7 +134,7 @@ app.get('/', (req, res) => {
 // Route untuk Dashboard
 app.get('/dashboard', (req, res) => {
     const db = getDb();
-    const sql = 'SELECT id, judul, createdAt, tipe_tender, batasWaktu FROM procurement_list ORDER BY createdAt DESC'; // Ambil juga batasWaktu
+    const sql = 'SELECT id, judul, createdAt, tipe_tender, batasWaktu, attachmentName FROM procurement_list ORDER BY createdAt DESC'; 
 
     db.all(sql, [], (err, allRows) => {
         // Log 1: Cek Error Database
@@ -114,18 +186,39 @@ app.get('/dashboard', (req, res) => {
         // Log 5: Cek Event Setelah Filter
         console.log(`>>> Event setelah filter (valid): ${calendarEvents.length} item`);
 
-        // Hitung statistik (pindahkan ke sini agar selalu terhitung)
+        // --- Modifikasi Data Tender untuk Menyertakan Path PDF Lokal (Sama seperti di route /) --- 
+        const addLocalPdfPath = (tender) => {
+            let pdfFilename = tender.attachmentName;
+            if (pdfFilename) {
+                pdfFilename = pdfFilename.replace(/[\\/?:*"<>|]/g, '-').replace(/\s+/g, '_');
+                const potentialPath = path.join(localPdfDir, pdfFilename);
+                if (fs.existsSync(potentialPath)) {
+                    return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(pdfFilename)}` };
+                }
+            }
+            const fallbackFilename = `attachment_${tender.id}.pdf`;
+            const fallbackPath = path.join(localPdfDir, fallbackFilename);
+             if (tender.id && fs.existsSync(fallbackPath)) {
+                 console.log(`[PDF Check Dashboard] File untuk ${tender.judul} tidak ditemukan dengan nama asli, menggunakan fallback ID: ${fallbackFilename}`) 
+                 return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(fallbackFilename)}` };
+            }
+            return tender;
+        };
+        // -------------------------------------------------------------------------
+
+        // Hitung statistik
         const totalTenders = allRows ? allRows.length : 0;
         const totalPrakualifikasi = allRows ? allRows.filter(row => row.tipe_tender === 'Prakualifikasi').length : 0;
         const totalPelelangan = allRows ? allRows.filter(row => row.tipe_tender === 'Pelelangan Umum').length : 0;
-        const latestTenders = allRows ? allRows.slice(0, 5) : [];
+        // Ambil data terbaru *setelah* menambahkan path PDF
+        const latestTendersWithPdf = allRows ? allRows.map(addLocalPdfPath).slice(0, 5) : []; 
 
         // Data yang akan dikirim ke view dashboard
         const dashboardData = {
             totalTenders: totalTenders,
             totalPrakualifikasi: totalPrakualifikasi,
             totalPelelangan: totalPelelangan,
-            latestTenders: latestTenders,
+            latestTenders: latestTendersWithPdf, 
             calendarEvents: calendarEvents 
         };
 

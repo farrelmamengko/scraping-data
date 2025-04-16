@@ -1,8 +1,13 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
+const path = require('path');
+const fs = require('fs');
 const { PATHS } = require('../utils/config');
 const { removeDuplicates } = require('../utils/helpers');
-const { insertProcurementData } = require('../utils/database'); // Import insertProcurementData
+const { insertProcurementData } = require('../utils/database');
+const { downloadPdfsWithPlaywright } = require('./downloadPDFsPlaywright');
+
+const BASE_URL = 'https://civd.skkmigas.go.id';
 
 /**
  * Ekstrak data procurement dari HTML menggunakan Cheerio
@@ -44,8 +49,16 @@ function extractProcurementFromHtml($) {
         .trim();
       
       // Ekstrak URL dan attachment
-      const fileUrl = attachmentLink.attr('data-url') || '';
-      const fileName = attachmentLink.attr('data-name') || '';
+      const filePath = attachmentLink.attr('data-url') || '';
+      const fileName = attachmentLink.attr('data-doc-name') || attachmentLink.attr('data-name') || '';
+      
+      // Buat attachmentUrl dengan menggabungkan path dan ID
+      let constructedAttachmentUrl = null;
+      if (fileId && filePath && !filePath.startsWith('javascript:')) {
+        // Bersihkan path jika ada ;jsessionid (meskipun seharusnya tidak)
+        const cleanPath = filePath.split(';')[0]; 
+        constructedAttachmentUrl = `${cleanPath}?id=${fileId}`;
+      }
       
       const procurement = {
         id: fileId,
@@ -55,7 +68,7 @@ function extractProcurementFromHtml($) {
         bidangUsaha: bidangUsaha,
         batasWaktu: batasWaktu,
         url: fileId,
-        attachmentUrl: fileUrl,
+        attachmentUrl: constructedAttachmentUrl,
         attachmentName: fileName
       };
       
@@ -69,14 +82,12 @@ function extractProcurementFromHtml($) {
 }
 
 /**
- * Mengambil data procurement menggunakan API endpoint
+ * Mengambil data procurement menggunakan API endpoint dan MENGUNDUH attachment SETELAH semua data terkumpul.
  */
 async function scrapeProcurementList() {
-  console.log('[DEBUG] Memasuki fungsi scrapeProcurementList'); // Log Debug 1
+  console.log('[Procurement] Memulai scraping data...');
+
   try {
-    console.log('Memulai scraping procurement list...');
-    console.log('[DEBUG] Inisialisasi variabel...'); // Log Debug 2
-    
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -88,12 +99,13 @@ async function scrapeProcurementList() {
     let allData = [];
     let currentPage = 1;
     let hasMoreData = true;
-    
-    while (hasMoreData) {
+    const MAX_PAGES = 50;
+
+    while (hasMoreData && currentPage <= MAX_PAGES) {
       try {
-        console.log(`Mengambil data halaman ${currentPage}...`);
+        console.log(`[Procurement] Mengambil data halaman ${currentPage}...`);
         const response = await axios.get(
-          `https://civd.skkmigas.go.id/ajax/search/tnd.jwebs?type=1&d-1789-p=${currentPage}`,
+          `${BASE_URL}/ajax/search/tnd.jwebs?type=1&d-1789-p=${currentPage}`,
           { headers }
         );
         
@@ -101,38 +113,57 @@ async function scrapeProcurementList() {
         const pageData = extractProcurementFromHtml($);
         
         if (pageData.length > 0) {
+          console.log(`[Procurement] Berhasil mendapatkan ${pageData.length} data dari halaman ${currentPage}`);
           allData = allData.concat(pageData);
-          console.log(`Berhasil mendapatkan ${pageData.length} data dari halaman ${currentPage}`);
+
           currentPage++;
         } else {
           hasMoreData = false;
-          console.log('Tidak ada data lagi, berhenti scraping');
+          console.log(`[Procurement] Tidak ada data lagi di halaman ${currentPage}, berhenti scraping.`);
         }
         
-        // Tunggu sebentar sebelum request berikutnya
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 2500));
         
       } catch (error) {
-        console.error(`Error saat mengambil halaman ${currentPage}:`, error.message);
-        hasMoreData = false;
+        if (error.response && error.response.status === 404) {
+             console.log(`[Procurement] Halaman ${currentPage} tidak ditemukan (404), menganggap akhir data.`);
+             hasMoreData = false;
+        } else {
+            console.error(`[Procurement] Error saat mengambil/memproses halaman ${currentPage}:`, error.message);
+            hasMoreData = false;
+        }
       }
     }
-    
-    // Hapus duplikat
-    const uniqueProcurement = removeDuplicates(allData);
-    console.log(`Total data yang berhasil dikumpulkan: ${uniqueProcurement.length}`);
 
-    // Simpan data ke database menggunakan fungsi utilitas
+    if (currentPage > MAX_PAGES) {
+        console.warn(`[Procurement] Mencapai batas maksimum halaman (${MAX_PAGES}). Berhenti.`);
+    }
+
+    const uniqueProcurement = removeDuplicates(allData);
+    console.log(`[Procurement] Total data unik yang berhasil dikumpulkan: ${uniqueProcurement.length}`);
+
     if (uniqueProcurement.length > 0) {
-        console.log('Menyimpan data ke database...');
-        insertProcurementData(uniqueProcurement, 'Prakualifikasi');
-        console.log('Perintah penyimpanan data dikirim.'); // Log diubah karena insert async
+        console.log('[Procurement] Menyimpan semua data unik ke database...');
+        await insertProcurementData(uniqueProcurement, 'Prakualifikasi');
+        console.log('[Procurement] Semua data unik berhasil disimpan ke database.');
+
+        // Panggil Playwright untuk mengunduh PDF setelah data disimpan
+        console.log('[Procurement] Memulai pengunduhan PDF dengan Playwright...');
+        try {
+             await downloadPdfsWithPlaywright(uniqueProcurement);
+             console.log('[Procurement] Proses pengunduhan PDF dengan Playwright selesai.');
+        } catch (playwrightError) {
+            console.error('[Procurement] Terjadi error saat menjalankan pengunduhan Playwright:', playwrightError);
+        }
+
+    } else {
+        console.log('[Procurement] Tidak ada data unik untuk disimpan atau diunduh.');
     }
 
     return uniqueProcurement;
+
   } catch (error) {
-    console.error('Error saat scraping procurement list:', error.message);
-    throw error;
+    console.error('[Procurement] Error utama saat scraping procurement list:', error.message);
   }
 }
 
@@ -140,5 +171,11 @@ module.exports = {
   scrapeProcurementList
 };
 
-// Panggil fungsi untuk menjalankannya saat script dieksekusi langsung
-scrapeProcurementList(); 
+(async () => {
+    try {
+        await scrapeProcurementList();
+    } catch (error) {
+        console.error("Gagal menjalankan scraper Prakualifikasi:", error);
+        process.exit(1);
+    }
+})(); 
