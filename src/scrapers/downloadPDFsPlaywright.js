@@ -1,6 +1,7 @@
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
+const { sanitizeFilename } = require('../utils/helpers'); // Import dari helpers
 
 // Direktori tujuan unduhan
 const downloadPath = path.join(__dirname, '..', 'download pdf');
@@ -9,12 +10,6 @@ const downloadPath = path.join(__dirname, '..', 'download pdf');
 if (!fs.existsSync(downloadPath)) {
   fs.mkdirSync(downloadPath, { recursive: true });
   console.log(`[Playwright Downloader] Direktori unduhan dibuat: ${downloadPath}`);
-}
-
-// Fungsi untuk membersihkan nama file
-function sanitizeFilename(filename) {
-    if (!filename) return `downloaded_file_${Date.now()}.pdf`;
-    return filename.replace(/[\\/?:*"<>|]/g, '-').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_.-]/g, '');
 }
 
 /**

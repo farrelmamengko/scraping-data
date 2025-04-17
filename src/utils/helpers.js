@@ -26,6 +26,21 @@ function removeDuplicates(data) {
 }
 
 /**
+ * Membersihkan nama file agar aman digunakan dalam sistem file.
+ * Mengganti karakter tidak valid dengan '-', spasi dengan '_', dan menghapus
+ * karakter non-alphanumeric lainnya (kecuali ., _, -).
+ * @param {string | null | undefined} filename Nama file asli.
+ * @returns {string} Nama file yang sudah disanitasi.
+ */
+function sanitizeFilename(filename) {
+    if (!filename) return `downloaded_file_${Date.now()}.pdf`;
+    // 1. Ganti karakter tidak valid dengan '-'
+    // 2. Ganti spasi dengan '_'
+    // 3. Hapus SEMUA karakter lain kecuali huruf, angka, _, ., -
+    return filename.replace(/[\\/?:*"<>|]/g, '-').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_.-]/g, '');
+}
+
+/**
  * Menyimpan data ke file JSON untuk debugging
  * @param {Array} data Data yang akan disimpan
  * @param {string} filename Nama file tanpa ekstensi
@@ -43,5 +58,6 @@ function saveJsonDebug(data, filename) {
 
 module.exports = {
   removeDuplicates,
-  saveJsonDebug
+  saveJsonDebug,
+  sanitizeFilename
 }; 
