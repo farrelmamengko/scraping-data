@@ -74,6 +74,11 @@ app.use(express.static(path.join(__dirname, 'public'))); // Untuk file statis se
 // --- Route Baru untuk Menyajikan PDF Lokal ---
 app.get('/local-pdfs/:filename', (req, res) => {
   const filename = req.params.filename;
+  // --- Log Debugging Ditambahkan ---
+  console.log(`[PDF Route] Request diterima untuk: ${filename}`);
+  console.log(`[PDF Route] Decoded filename: ${decodeURIComponent(filename)}`);
+  // --------------------------------
+
   // Validasi sederhana: hanya izinkan .pdf dan cegah path traversal
   if (!filename.endsWith('.pdf') || filename.includes('..')) {
     return res.status(400).send('Nama file tidak valid.');
@@ -84,9 +89,12 @@ app.get('/local-pdfs/:filename', (req, res) => {
   // Cek apakah file ada sebelum mengirim
   fs.access(filePath, fs.constants.R_OK, (err) => {
     if (err) {
-      console.error(`Error akses file PDF: ${filePath}`, err);
+      console.error(`[PDF Route] Error akses file PDF: ${filePath}`, err);
       return res.status(404).send('File PDF tidak ditemukan.');
     }
+    // --- Log Debugging Ditambahkan ---
+    console.log(`[PDF Route] File ditemukan: ${filePath}. Mencoba mengirim...`);
+    // --------------------------------
     // Kirim file
     // Set header Content-Type secara eksplisit
     res.setHeader('Content-Type', 'application/pdf');
@@ -99,7 +107,7 @@ app.get('/local-pdfs/:filename', (req, res) => {
             }
         } else {
             // Tambahkan log sukses
-            console.log(`[Server] Berhasil mengirim file PDF: ${filePath}`);
+            console.log(`[PDF Route] Berhasil mengirim file PDF: ${filePath}`);
         }
     });
   });
@@ -170,6 +178,15 @@ app.get('/', (req, res) => {
       return rows.map(tender => {
         tender.isExpired = checkIsExpired(tender.batasWaktu);
         tender.isNew = checkIsNew(tender.createdAt);
+        if (tender.isNew) {
+             console.log(`[Check New] Tender "${tender.judul}" (Created: ${tender.createdAt}) terdeteksi BARU.`);
+        } else {
+             const createdDate = new Date(tender.createdAt);
+             const hoursAgo = (new Date().getTime() - createdDate.getTime()) / (1000 * 60 * 60);
+             if (hoursAgo < 48) {
+                 console.log(`[Check New] Tender "${tender.judul}" (Created: ${tender.createdAt}, ${hoursAgo.toFixed(1)} jam lalu) TIDAK terdeteksi baru.`);
+             }
+        }
         return tender;
       });
     };
@@ -180,19 +197,27 @@ app.get('/', (req, res) => {
         const pdfFilename = sanitizeFilename(tender.attachmentName);
         
         if (pdfFilename) {
-            const potentialPath = path.join(localPdfDir, pdfFilename);
-            if (fs.existsSync(potentialPath)) {
-                return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(pdfFilename)}` };
+            // --- Logika Pengecekan File Baru ---
+            try {
+                const filesInDir = fs.readdirSync(localPdfDir);
+                const fileExists = filesInDir.includes(pdfFilename);
+                console.log(`[PDF Check Dir /] Mengecek file: ${pdfFilename} di ${localPdfDir}. Hasil readdirSync.includes: ${fileExists}`);
+                if (fileExists) {
+                    const potentialPath = path.join(localPdfDir, pdfFilename);
+                    return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(pdfFilename)}` };
+                }
+            } catch (readdirError) {
+                console.error(`[PDF Check Dir /] Error membaca direktori ${localPdfDir}:`, readdirError);
             }
+            // ----------------------------------
         }
-        // Fallback: Coba cari berdasarkan ID (jika logika ini masih relevan)
-        const fallbackFilename = `attachment_${tender.id}.pdf`; 
-        const fallbackPath = path.join(localPdfDir, fallbackFilename);
-        if (tender.id && fs.existsSync(fallbackPath)) {
-             console.log(`[PDF Check /] File untuk ${tender.judul} tidak ditemukan dengan nama asli (${pdfFilename}), menggunakan fallback ID: ${fallbackFilename}`) 
-             return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(fallbackFilename)}` };
-        }
+        // Fallback (jika perlu, tapi kita fokus pada pengecekan utama dulu)
+        // const fallbackFilename = `attachment_${tender.id}.pdf`; 
+        // const fallbackPath = path.join(localPdfDir, fallbackFilename);
+        // if (tender.id && fs.existsSync(fallbackPath)) { ... }
         
+        // Jika tidak ditemukan dengan metode baru, kembalikan tender asli
+        console.log(`[PDF Check Dir /] File TIDAK DITEMUKAN untuk attachmentName: ${tender.attachmentName} (sanitized: ${pdfFilename})`);
         return tender;
     };
 
@@ -296,18 +321,24 @@ app.get('/dashboard', (req, res) => {
             const pdfFilename = sanitizeFilename(tender.attachmentName);
             
             if (pdfFilename) {
-                const potentialPath = path.join(localPdfDir, pdfFilename);
-                if (fs.existsSync(potentialPath)) {
-                    return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(pdfFilename)}` };
+                // --- Logika Pengecekan File Baru ---
+                 try {
+                    const filesInDir = fs.readdirSync(localPdfDir);
+                    const fileExists = filesInDir.includes(pdfFilename);
+                    console.log(`[PDF Check Dir Dashboard] Mengecek file: ${pdfFilename} di ${localPdfDir}. Hasil readdirSync.includes: ${fileExists}`);
+                    if (fileExists) {
+                        const potentialPath = path.join(localPdfDir, pdfFilename);
+                        return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(pdfFilename)}` };
+                    }
+                } catch (readdirError) {
+                    console.error(`[PDF Check Dir Dashboard] Error membaca direktori ${localPdfDir}:`, readdirError);
                 }
+                // ----------------------------------
             }
-            // Fallback (jika masih relevan)
-            const fallbackFilename = `attachment_${tender.id}.pdf`;
-            const fallbackPath = path.join(localPdfDir, fallbackFilename);
-             if (tender.id && fs.existsSync(fallbackPath)) {
-                 console.log(`[PDF Check Dashboard] File untuk ${tender.judul} tidak ditemukan dengan nama asli (${pdfFilename}), menggunakan fallback ID: ${fallbackFilename}`) 
-                 return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(fallbackFilename)}` };
-            }
+            // Fallback (jika perlu)
+            // const fallbackFilename = `attachment_${tender.id}.pdf`; ...
+
+            console.log(`[PDF Check Dir Dashboard] File TIDAK DITEMUKAN untuk attachmentName: ${tender.attachmentName} (sanitized: ${pdfFilename})`);
             return tender;
         };
         // -------------------------------------------------------------------------

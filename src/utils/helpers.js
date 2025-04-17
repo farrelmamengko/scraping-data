@@ -34,10 +34,30 @@ function removeDuplicates(data) {
  */
 function sanitizeFilename(filename) {
     if (!filename) return `downloaded_file_${Date.now()}.pdf`;
+
+    // Simpan ekstensi asli (misal .pdf)
+    const extensionMatch = filename.match(/\.[^.]+$/);
+    const extension = extensionMatch ? extensionMatch[0] : '';
+    let baseName = extension ? filename.substring(0, filename.length - extension.length) : filename;
+
     // 1. Ganti karakter tidak valid dengan '-'
+    baseName = baseName.replace(/[\\/?:*"<>|]/g, '-');
     // 2. Ganti spasi dengan '_'
-    // 3. Hapus SEMUA karakter lain kecuali huruf, angka, _, ., -
-    return filename.replace(/[\\/?:*"<>|]/g, '-').replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_.-]/g, '');
+    baseName = baseName.replace(/\s+/g, '_');
+    // 3. Ganti beberapa titik berurutan dengan satu titik
+    baseName = baseName.replace(/\.{2,}/g, '.');
+    // 4. Hapus titik atau garis bawah atau tanda hubung di AKHIR basename
+    baseName = baseName.replace(/[._-]+$/g, '');
+    // 5. Hapus SEMUA karakter lain kecuali huruf, angka, _, ., -
+    baseName = baseName.replace(/[^a-zA-Z0-9_.-]/g, '');
+
+    // Pastikan basename tidak kosong setelah sanitasi
+    if (!baseName) {
+        baseName = `sanitized_file_${Date.now()}`;
+    }
+
+    // Gabungkan kembali basename dengan ekstensi
+    return baseName + extension;
 }
 
 /**
