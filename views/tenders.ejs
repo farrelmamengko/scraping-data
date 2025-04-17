@@ -294,6 +294,109 @@
             vertical-align: middle;
         }
 
+        /* Panel Pencarian */
+        .search-panel {
+            background-color: #ffffff;
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .search-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: flex-end;
+        }
+
+        .search-field {
+            flex: 1 1 200px;
+        }
+
+        .search-field label {
+            display: block;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        .search-field input, .search-field select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 0.95em;
+        }
+
+        .search-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-search, .btn-reset {
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+        }
+
+        .btn-search {
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+        }
+
+        .btn-search:hover {
+            background-color: #138496;
+        }
+
+        .btn-reset {
+            background-color: #e9ecef;
+            color: #495057;
+            border: 1px solid #ced4da;
+        }
+
+        .btn-reset:hover {
+            background-color: #dee2e6;
+        }
+
+        /* Informasi Hasil Pencarian */
+        .search-results-info {
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            background-color: #f8f9fa;
+            border: 1px solid #e1e4e8;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .search-results-info p {
+            margin: 0;
+            color: #495057;
+        }
+
+        .search-results-info strong {
+            margin: 0 5px;
+            color: #17a2b8;
+        }
+
+        /* Media query untuk layar kecil */
+        @media (max-width: 768px) {
+            .search-form {
+                flex-direction: column;
+            }
+            
+            .search-field {
+                flex: 1 1 100%;
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -304,6 +407,54 @@
 </header>
 
 <div class="main-container">
+
+    <!-- Panel Pencarian -->
+    <div class="search-panel">
+        <form method="GET" action="/">
+            <div class="search-form">
+                <div class="search-field">
+                    <label for="keyword">Kata Kunci:</label>
+                    <input type="text" id="keyword" name="keyword" placeholder="Cari tender..." value="<%= locals.keyword || '' %>">
+                </div>
+                
+                <div class="search-field">
+                    <label for="type">Tipe Tender:</label>
+                    <select id="type" name="type">
+                        <option value="" <%= !locals.type ? 'selected' : '' %>>Semua</option>
+                        <option value="Prakualifikasi" <%= locals.type === 'Prakualifikasi' ? 'selected' : '' %>>Prakualifikasi</option>
+                        <option value="Pelelangan Umum" <%= locals.type === 'Pelelangan Umum' ? 'selected' : '' %>>Pelelangan Umum</option>
+                    </select>
+                </div>
+                
+                <div class="search-field">
+                    <label for="status">Status:</label>
+                    <select id="status" name="status">
+                        <option value="" <%= !locals.status ? 'selected' : '' %>>Semua</option>
+                        <option value="active" <%= locals.status === 'active' ? 'selected' : '' %>>Aktif</option>
+                        <option value="expired" <%= locals.status === 'expired' ? 'selected' : '' %>>Expired</option>
+                    </select>
+                </div>
+                
+                <div class="search-buttons">
+                    <button type="submit" class="btn-search">Cari</button>
+                    <a href="/" class="btn-reset">Reset</a>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Informasi Hasil Pencarian -->
+    <% if (locals.keyword || locals.type || locals.status) { %>
+    <div class="search-results-info">
+        <p>
+            Hasil pencarian untuk 
+            <% if (locals.keyword) { %><strong>kata kunci: "<%= keyword %>"</strong><% } %>
+            <% if (locals.type) { %><strong>tipe: <%= type %></strong><% } %>
+            <% if (locals.status) { %><strong>status: <%= status === 'expired' ? 'Expired' : 'Aktif' %></strong><% } %>
+            (<%= totalResultsPrak + totalResultsPel %> tender ditemukan)
+        </p>
+    </div>
+    <% } %>
 
     <!-- Section untuk Tender Prakualifikasi -->
     <div class="tender-section">
@@ -361,7 +512,7 @@
             <% if (totalPagesPrak > 1) { %>
                 <ul class="pagination">
                     <li class="<%= currentPage <= 1 ? 'disabled' : '' %>">
-                        <a href="/?page=<%= currentPage - 1 %>">&laquo;</a>
+                        <a href="/?page=<%= currentPage - 1 %><%= locals.keyword ? '&keyword=' + encodeURIComponent(keyword) : '' %><%= locals.type ? '&type=' + encodeURIComponent(type) : '' %><%= locals.status ? '&status=' + encodeURIComponent(status) : '' %>">&laquo;</a>
                     </li>
                     <% 
                     const maxPagesToShow = 5;
@@ -372,20 +523,20 @@
                     }
                     %> 
                     <% if (startPage > 1) { %>
-                        <li><a href="/?page=1">1</a></li>
+                        <li><a href="/?page=1<%= locals.keyword ? '&keyword=' + encodeURIComponent(keyword) : '' %><%= locals.type ? '&type=' + encodeURIComponent(type) : '' %><%= locals.status ? '&status=' + encodeURIComponent(status) : '' %>">1</a></li>
                         <% if (startPage > 2) { %><li class="disabled"><a>...</a></li><% } %>
                     <% } %>
                     <% for (let i = startPage; i <= endPage; i++) { %>
                         <li class="<%= i === currentPage ? 'active' : '' %>">
-                            <a href="/?page=<%= i %>"><%= i %></a>
+                            <a href="/?page=<%= i %><%= locals.keyword ? '&keyword=' + encodeURIComponent(keyword) : '' %><%= locals.type ? '&type=' + encodeURIComponent(type) : '' %><%= locals.status ? '&status=' + encodeURIComponent(status) : '' %>"><%= i %></a>
                         </li>
                     <% } %>
                     <% if (endPage < totalPagesPrak) { %>
                         <% if (endPage < totalPagesPrak - 1) { %><li class="disabled"><a>...</a></li><% } %>
-                        <li><a href="/?page=<%= totalPagesPrak %>"><%= totalPagesPrak %></a></li>
+                        <li><a href="/?page=<%= totalPagesPrak %><%= locals.keyword ? '&keyword=' + encodeURIComponent(keyword) : '' %><%= locals.type ? '&type=' + encodeURIComponent(type) : '' %><%= locals.status ? '&status=' + encodeURIComponent(status) : '' %>"><%= totalPagesPrak %></a></li>
                     <% } %>
                     <li class="<%= currentPage >= totalPagesPrak ? 'disabled' : '' %>">
-                        <a href="/?page=<%= currentPage + 1 %>">&raquo;</a>
+                        <a href="/?page=<%= currentPage + 1 %><%= locals.keyword ? '&keyword=' + encodeURIComponent(keyword) : '' %><%= locals.type ? '&type=' + encodeURIComponent(type) : '' %><%= locals.status ? '&status=' + encodeURIComponent(status) : '' %>">&raquo;</a>
                     </li>
                 </ul>
             <% } %>
@@ -444,7 +595,7 @@
             <% if (totalPagesPel > 1) { %>
                 <ul class="pagination">
                     <li class="<%= currentPage <= 1 ? 'disabled' : '' %>">
-                        <a href="/?page=<%= currentPage - 1 %>">&laquo;</a>
+                        <a href="/?page=<%= currentPage - 1 %><%= locals.keyword ? '&keyword=' + encodeURIComponent(keyword) : '' %><%= locals.type ? '&type=' + encodeURIComponent(type) : '' %><%= locals.status ? '&status=' + encodeURIComponent(status) : '' %>">&laquo;</a>
                     </li>
                     <% 
                     const maxPagesToShowPel = 5;
@@ -455,20 +606,20 @@
                     }
                     %> 
                     <% if (startPagePel > 1) { %>
-                        <li><a href="/?page=1">1</a></li>
+                        <li><a href="/?page=1<%= locals.keyword ? '&keyword=' + encodeURIComponent(keyword) : '' %><%= locals.type ? '&type=' + encodeURIComponent(type) : '' %><%= locals.status ? '&status=' + encodeURIComponent(status) : '' %>">1</a></li>
                         <% if (startPagePel > 2) { %><li class="disabled"><a>...</a></li><% } %>
                     <% } %>
                     <% for (let i = startPagePel; i <= endPagePel; i++) { %>
                         <li class="<%= i === currentPage ? 'active' : '' %>">
-                            <a href="/?page=<%= i %>"><%= i %></a>
+                            <a href="/?page=<%= i %><%= locals.keyword ? '&keyword=' + encodeURIComponent(keyword) : '' %><%= locals.type ? '&type=' + encodeURIComponent(type) : '' %><%= locals.status ? '&status=' + encodeURIComponent(status) : '' %>"><%= i %></a>
                         </li>
                     <% } %>
                     <% if (endPagePel < totalPagesPel) { %>
                         <% if (endPagePel < totalPagesPel - 1) { %><li class="disabled"><a>...</a></li><% } %>
-                        <li><a href="/?page=<%= totalPagesPel %>"><%= totalPagesPel %></a></li>
+                        <li><a href="/?page=<%= totalPagesPel %><%= locals.keyword ? '&keyword=' + encodeURIComponent(keyword) : '' %><%= locals.type ? '&type=' + encodeURIComponent(type) : '' %><%= locals.status ? '&status=' + encodeURIComponent(status) : '' %>"><%= totalPagesPel %></a></li>
                     <% } %>
                     <li class="<%= currentPage >= totalPagesPel ? 'disabled' : '' %>">
-                        <a href="/?page=<%= currentPage + 1 %>">&raquo;</a>
+                        <a href="/?page=<%= currentPage + 1 %><%= locals.keyword ? '&keyword=' + encodeURIComponent(keyword) : '' %><%= locals.type ? '&type=' + encodeURIComponent(type) : '' %><%= locals.status ? '&status=' + encodeURIComponent(status) : '' %>">&raquo;</a>
                     </li>
                 </ul>
             <% } %>

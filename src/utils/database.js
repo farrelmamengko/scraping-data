@@ -109,6 +109,27 @@ function insertProcurementData(data, tenderType) {
   });
 }
 
+/**
+ * Mengambil semua ID tender yang sudah ada di database.
+ * @returns {Promise<Set<string>>} Promise yang resolve dengan Set berisi ID tender yang ada.
+ */
+async function getExistingTenderIds() {
+  return new Promise((resolve, reject) => {
+    const dbInstance = getDb();
+    const sql = 'SELECT id FROM procurement_list';
+    dbInstance.all(sql, [], (err, rows) => {
+      if (err) {
+        console.error('Error fetching existing tender IDs:', err.message);
+        reject(err);
+      } else {
+        const idSet = new Set(rows.map(row => row.id));
+        console.log(`[DB] Ditemukan ${idSet.size} ID tender yang sudah ada.`);
+        resolve(idSet);
+      }
+    });
+  });
+}
+
 function closeDb() {
   if (db) {
     db.close((err) => {
@@ -126,5 +147,6 @@ module.exports = {
   getDb,
   initializeDb,
   insertProcurementData,
-  closeDb
+  closeDb,
+  getExistingTenderIds
 }; 

@@ -5,7 +5,7 @@ const cheerio = require('cheerio');
 // const puppeteer = require('puppeteer'); // Tidak digunakan di versi ini
 const { removeDuplicates } = require('../utils/helpers'); // Hanya removeDuplicates
 const qs = require('qs'); // Import library qs untuk format form data
-const { insertProcurementData } = require('../utils/database'); // Import insertProcurementData
+const { insertProcurementData, getExistingTenderIds } = require('../utils/database'); // Import insertProcurementData dan getExistingTenderIds
 const { downloadPdfsWithPlaywright } = require('./downloadPDFsPlaywright'); // Import Playwright downloader
 // Hapus import PaginationHandler
 // const PaginationHandler = require('../utils/paginationHandler');
@@ -134,22 +134,27 @@ function extractPelelanganFromHtml($) {
  * Mengambil data pelelangan umum menggunakan request POST AJAX
  */
 async function scrapePelelangan() {
-  const url = 'https://civd.skkmigas.go.id/ajax/search/tnd.jwebs'; // URL AJAX target
-  console.log(`Memulai scraping pelelangan umum dari AJAX: ${url}`);
-
-  // Data form yang akan dikirim
-  const formData = {
-    type: 2, // Type 2 untuk Pelelangan Umum
-    keyword: ''
-  };
-
+  console.log('[Pelelangan] Memulai scraping data...');
+  
   try {
+    // Ambil ID tender yang sudah ada di database SEBELUM memulai loop
+    const existingIdsSet = await getExistingTenderIds();
+    
+    const url = 'https://civd.skkmigas.go.id/ajax/search/tnd.jwebs'; // URL AJAX target
+    console.log(`Memulai scraping pelelangan umum dari AJAX: ${url}`);
+
+    // Data form yang akan dikirim
+    const formData = {
+      type: 2, // Type 2 untuk Pelelangan Umum
+      keyword: ''
+    };
+
     const response = await axios.post(url,
       qs.stringify(formData), // Format data sebagai x-www-form-urlencoded
       {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.0.0 Safari/537.36', // User agent generik
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36', // User agent generik
           'Accept': '*/*', // Terima semua tipe response
           'X-Requested-With': 'XMLHttpRequest' // Tandai sebagai request AJAX
           // 'Cookie': '...' // Tambahkan jika diperlukan setelah testing
@@ -169,30 +174,48 @@ async function scrapePelelangan() {
     }
 
     const $ = cheerio.load(response.data);
-    const allPelelanganData = extractPelelanganFromHtml($);
+    const pageData = extractPelelanganFromHtml($);
+    
+    // Filter pageData untuk hanya menyertakan data baru
+    const newData = pageData.filter(tender => !existingIdsSet.has(tender.id));
 
-    // Hapus duplikat
-    const uniquePelelangan = removeDuplicates(allPelelanganData, 'id');
-    console.log(`Total data pelelangan unik yang berhasil dikumpulkan: ${uniquePelelangan.length}`);
+    if (newData.length > 0) {
+      // Log jumlah data BARU yang ditemukan
+      console.log(`[Pelelangan] Ditemukan ${newData.length} data BARU di halaman ${currentPage} (dari total ${pageData.length} di halaman ini).`);
+      allData = allData.concat(newData); // Hanya tambahkan data baru ke allData
+      currentPage++;
+    } else {
+      console.log(`[Pelelangan] Tidak ada data BARU di halaman ${currentPage} (dari total ${pageData.length} di halaman ini). Mungkin akhir data baru atau halaman lama.`);
+      // Cek apakah masih ada tombol next (jika ada data lama di halaman berikutnya)
+      // Selector untuk tombol next mungkin berbeda, sesuaikan jika perlu
+      const nextPageLink = $('div.pagelinks a[title="Next"].uibutton'); // Asumsi selector sama
+      if (nextPageLink.length === 0 || nextPageLink.hasClass('disable')) {
+          hasMoreData = false;
+          console.log(`[Pelelangan] Tombol 'Next' tidak ditemukan atau disabled di halaman ${currentPage}. Menghentikan scraping.`);
+      } else {
+          console.log(`[Pelelangan] Masih ada halaman berikutnya, lanjut mencari data baru...`);
+          currentPage++; // Tetap lanjut ke halaman berikutnya
+      }
+    }
+    
+    // Hapus pengecekan pageData.length lama
+    // if (pageData.length > 0) { ... } else { hasMoreData = false; ... }
 
-    // Simpan data ke database
+    await new Promise(resolve => setTimeout(resolve, 2500));
+
+    const uniquePelelangan = removeDuplicates(allData);
+    console.log(`[Pelelangan] Total data unik BARU yang berhasil dikumpulkan: ${uniquePelelangan.length}`);
+
     if (uniquePelelangan.length > 0) {
-        console.log('Menyimpan data Pelelangan Umum ke database...');
-        await insertProcurementData(uniquePelelangan, 'Pelelangan Umum');
-        console.log('Data Pelelangan Umum berhasil disimpan ke database.');
-
-        // Panggil Playwright untuk mengunduh PDF setelah data disimpan
-        console.log('[Pelelangan] Memulai pengunduhan PDF dengan Playwright...');
-        try {
-            await downloadPdfsWithPlaywright(uniquePelelangan); // Kirim data tender
-            console.log('[Pelelangan] Proses pengunduhan PDF dengan Playwright selesai.');
-        } catch (playwrightError) {
-            console.error('[Pelelangan] Terjadi error saat menjalankan pengunduhan Playwright:', playwrightError);
-        }
-        //-------------------------------------------------------------
+      console.log('[Pelelangan] Menyimpan data unik BARU ke database...');
+      await insertProcurementData(uniquePelelangan, 'Pelelangan Umum');
+      console.log('[Pelelangan] Data unik BARU berhasil disimpan ke database.');
+      
+      // Tidak perlu panggil download PDF lagi di sini karena sudah dihandle oleh procurementList.js
+      // Jika ingin download terpisah, logika Playwright bisa dipanggil di sini juga.
 
     } else {
-        console.log('Tidak ada data Pelelangan Umum unik untuk disimpan atau diunduh.');
+      console.log('[Pelelangan] Tidak ada data unik BARU untuk disimpan.');
     }
 
     return uniquePelelangan;

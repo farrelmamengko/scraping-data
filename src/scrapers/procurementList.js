@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { PATHS } = require('../utils/config');
 const { removeDuplicates } = require('../utils/helpers');
-const { insertProcurementData } = require('../utils/database');
+const { insertProcurementData, getExistingTenderIds } = require('../utils/database');
 const { downloadPdfsWithPlaywright } = require('./downloadPDFsPlaywright');
 
 const BASE_URL = 'https://civd.skkmigas.go.id';
@@ -88,6 +88,9 @@ async function scrapeProcurementList() {
   console.log('[Procurement] Memulai scraping data...');
 
   try {
+    // Ambil ID tender yang sudah ada di database SEBELUM memulai loop
+    const existingIdsSet = await getExistingTenderIds();
+
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -112,14 +115,26 @@ async function scrapeProcurementList() {
         const $ = cheerio.load(response.data);
         const pageData = extractProcurementFromHtml($);
         
-        if (pageData.length > 0) {
-          console.log(`[Procurement] Berhasil mendapatkan ${pageData.length} data dari halaman ${currentPage}`);
-          allData = allData.concat(pageData);
+        // Filter pageData untuk hanya menyertakan data baru
+        const newData = pageData.filter(tender => !existingIdsSet.has(tender.id));
 
+        if (newData.length > 0) {
+          // Log jumlah data BARU yang ditemukan
+          console.log(`[Procurement] Ditemukan ${newData.length} data BARU di halaman ${currentPage} (dari total ${pageData.length} di halaman ini).`);
+          allData = allData.concat(newData); // Hanya tambahkan data baru ke allData
           currentPage++;
         } else {
-          hasMoreData = false;
-          console.log(`[Procurement] Tidak ada data lagi di halaman ${currentPage}, berhenti scraping.`);
+          console.log(`[Procurement] Tidak ada data BARU di halaman ${currentPage} (dari total ${pageData.length} di halaman ini). Mungkin akhir data baru atau halaman lama.`);
+          // Cek apakah masih ada tombol next (jika ada data lama di halaman berikutnya)
+          // Cek link pagination untuk 'next'
+          const nextPageLink = $('div.pagelinks a[title="Next"].uibutton');
+          if (nextPageLink.length === 0 || nextPageLink.hasClass('disable')) {
+              hasMoreData = false;
+              console.log(`[Procurement] Tombol 'Next' tidak ditemukan atau disabled di halaman ${currentPage}. Menghentikan scraping.`);
+          } else {
+              console.log(`[Procurement] Masih ada halaman berikutnya, lanjut mencari data baru...`);
+              currentPage++; // Tetap lanjut ke halaman berikutnya meskipun halaman ini kosong dari data baru
+          }
         }
         
         await new Promise(resolve => setTimeout(resolve, 2500));
@@ -140,10 +155,10 @@ async function scrapeProcurementList() {
     }
 
     const uniqueProcurement = removeDuplicates(allData);
-    console.log(`[Procurement] Total data unik yang berhasil dikumpulkan: ${uniqueProcurement.length}`);
+    console.log(`[Procurement] Total data unik BARU yang berhasil dikumpulkan: ${uniqueProcurement.length}`);
 
     if (uniqueProcurement.length > 0) {
-        console.log('[Procurement] Menyimpan semua data unik ke database...');
+        console.log('[Procurement] Menyimpan semua data unik BARU ke database...');
         await insertProcurementData(uniqueProcurement, 'Prakualifikasi');
         console.log('[Procurement] Semua data unik berhasil disimpan ke database.');
 
@@ -157,7 +172,7 @@ async function scrapeProcurementList() {
         }
 
     } else {
-        console.log('[Procurement] Tidak ada data unik untuk disimpan atau diunduh.');
+        console.log('[Procurement] Tidak ada data unik BARU untuk disimpan atau diunduh.');
     }
 
     return uniqueProcurement;

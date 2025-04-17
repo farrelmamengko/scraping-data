@@ -6,6 +6,7 @@ Proyek ini berisi sekumpulan scraper Node.js untuk mengambil data tender dari si
 
 *   Scraping data Undangan Prakualifikasi.
 *   Scraping data Pelelangan Umum melalui endpoint AJAX.
+*   **Scraping Efisien**: Hanya mengambil dan memproses data tender **baru** yang belum ada di database.
 *   Menyimpan data hasil scraping ke database SQLite (`database.db`).
 *   **Mengunduh attachment PDF** yang terkait dengan tender Prakualifikasi dan Pelelangan Umum menggunakan otomatisasi browser Playwright.
 *   Menangani paginasi saat mengunduh PDF.
@@ -94,7 +95,7 @@ Sistem ini terdiri dari beberapa komponen utama:
 *   **Scrapers (`src/scrapers/`)**: Bertugas mengambil data.
     *   `procurementList.js`: Untuk Undangan Prakualifikasi.
     *   `pelelangan.js`: Untuk Pelelangan Umum.
-*   **Database Utility (`src/utils/database.js`)**: Mengelola koneksi dan operasi database SQLite (`database.db`). Menyediakan fungsi `insertProcurementData`.
+*   **Database Utility (`src/utils/database.js`)**: Mengelola koneksi dan operasi database SQLite (`database.db`). Menyediakan fungsi `insertProcurementData` dan `getExistingTenderIds`.
 *   **Helper Utility (`src/utils/helpers.js`)**: Berisi fungsi pendukung (misalnya, `removeDuplicates`).
 *   **Server (`server.js`)**: Server web Express yang menangani request, mengambil data dari database, dan merender halaman.
 *   **Views (`views/`)**: File template EJS untuk antarmuka pengguna.
@@ -151,7 +152,7 @@ Menjalankan scraper akan mengambil data terbaru dari CIVD dan menyimpannya ke `d
 ## 7. Catatan & Potensi Pengembangan
 
 *   **Database Locking**: Jika Anda mendapatkan error `SQLITE_BUSY`, pastikan tidak ada proses lain yang mengakses `database.db`.
-*   **Update Data**: Scraper saat ini menggunakan `INSERT OR IGNORE`. Data lama di database tidak akan diperbarui jika hanya kontennya yang berubah (kecuali ID-nya). Untuk memperbarui, kosongkan tabel (`DELETE FROM procurement_list;` via DB Browser lalu `Write Changes`) dan jalankan ulang scraper.
+*   **Update Data**: Scraper saat ini dirancang untuk **hanya menambahkan data baru**. Data lama di database (misalnya, perubahan batas waktu pada tender yang sudah ada) **tidak akan diperbarui** oleh proses scraping. Jika diperlukan pembaruan data lama, strategi lain seperti menghapus data lama sebelum scraping atau implementasi logika UPDATE perlu dipertimbangkan.
 *   **Filter Kata Kunci**: Fitur selanjutnya bisa berupa penambahan filter berdasarkan kata kunci di halaman utama atau dashboard untuk menampilkan tender yang relevan dengan bidang usaha tertentu.
 *   **Deskripsi Detail**: Modal saat ini menampilkan bidang usaha sebagai deskripsi. Untuk menampilkan deskripsi pekerjaan yang sangat panjang seperti di situs aslinya, scraper perlu dimodifikasi untuk mengambil teks tersebut dan skema database perlu disesuaikan.
 *   **Penjadwalan Otomatis**: Gunakan `node-cron` atau penjadwal sistem operasi untuk menjalankan scraper secara berkala.

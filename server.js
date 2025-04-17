@@ -109,21 +109,70 @@ app.get('/local-pdfs/:filename', (req, res) => {
 // Route utama untuk menampilkan tender
 app.get('/', (req, res) => {
   const db = getDb();
-  // Ambil semua kolom yang relevan, termasuk batasWaktu
-  const sql = 'SELECT id, judul, tanggal, batasWaktu, kkks, bidangUsaha, url, attachmentUrl, attachmentName, tipe_tender, createdAt FROM procurement_list ORDER BY createdAt DESC';
+  
+  // Parameter pencarian
+  const keyword = req.query.keyword || '';
+  const type = req.query.type || '';
+  const status = req.query.status || '';
+  
+  // Basis SQL query
+  let sql = 'SELECT id, judul, tanggal, batasWaktu, kkks, bidangUsaha, url, attachmentUrl, attachmentName, tipe_tender, createdAt FROM procurement_list';
+  const sqlParams = [];
+  
+  // Menambahkan kondisi WHERE berdasarkan parameter pencarian
+  const conditions = [];
+  
+  if (keyword) {
+    conditions.push('(judul LIKE ? OR bidangUsaha LIKE ? OR kkks LIKE ?)');
+    const searchPattern = `%${keyword}%`;
+    sqlParams.push(searchPattern, searchPattern, searchPattern);
+  }
+  
+  if (type) {
+    conditions.push('tipe_tender = ?');
+    sqlParams.push(type);
+  }
+  
+  if (status === 'expired' || status === 'active') {
+    // Menggunakan fungsi SQLite untuk parsing tanggal
+    const today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+    
+    if (status === 'expired') {
+      conditions.push('date(substr(batasWaktu, 8, 4) || "-" || CASE substr(batasWaktu, 4, 3) WHEN "Jan" THEN "01" WHEN "Feb" THEN "02" WHEN "Mar" THEN "03" WHEN "Apr" THEN "04" WHEN "May" THEN "05" WHEN "Jun" THEN "06" WHEN "Jul" THEN "07" WHEN "Aug" THEN "08" WHEN "Sep" THEN "09" WHEN "Oct" THEN "10" WHEN "Nov" THEN "11" WHEN "Dec" THEN "12" END || "-" || substr(batasWaktu, 1, 2)) < ?');
+    } else { // active
+      conditions.push('date(substr(batasWaktu, 8, 4) || "-" || CASE substr(batasWaktu, 4, 3) WHEN "Jan" THEN "01" WHEN "Feb" THEN "02" WHEN "Mar" THEN "03" WHEN "Apr" THEN "04" WHEN "May" THEN "05" WHEN "Jun" THEN "06" WHEN "Jul" THEN "07" WHEN "Aug" THEN "08" WHEN "Sep" THEN "09" WHEN "Oct" THEN "10" WHEN "Nov" THEN "11" WHEN "Dec" THEN "12" END || "-" || substr(batasWaktu, 1, 2)) >= ?');
+    }
+    sqlParams.push(today);
+  }
+  
+  // Gabungkan kondisi jika ada
+  if (conditions.length > 0) {
+    sql += ' WHERE ' + conditions.join(' AND ');
+  }
+  
+  // Pengurutan tetap sama
+  sql += ' ORDER BY createdAt DESC';
 
   // Pagination setup
   const currentPage = parseInt(req.query.page || '1', 10);
   const itemsPerPage = 6;
   const startIndex = (currentPage - 1) * itemsPerPage;
-  // endIndex tidak perlu di SQL jika kita slice di aplikasi
 
-  db.all(sql, [], (err, allRows) => {
+  db.all(sql, sqlParams, (err, allRows) => {
     if (err) {
       console.error("Error fetching data:", err.message);
       res.status(500).send("Error mengambil data dari database");
       return;
     }
+
+    // --- Tambahkan flag isExpired dan isNew ---
+    const processTenders = (rows) => {
+      return rows.map(tender => {
+        tender.isExpired = checkIsExpired(tender.batasWaktu);
+        tender.isNew = checkIsNew(tender.createdAt);
+        return tender;
+      });
+    };
 
     // --- Modifikasi Data Tender untuk Menyertakan Path PDF Lokal --- 
     const addLocalPdfPath = (tender) => {
@@ -148,11 +197,12 @@ app.get('/', (req, res) => {
     };
 
     const allRowsWithPdf = allRows.map(addLocalPdfPath);
+    const allRowsProcessed = processTenders(allRowsWithPdf);
     // --- Akhir Modifikasi Data Tender ---
 
     // Pisahkan data berdasarkan tipe tender (setelah diproses)
-    const prakualifikasiTenders = allRowsWithPdf.filter(row => row.tipe_tender === 'Prakualifikasi');
-    const pelelanganTenders = allRowsWithPdf.filter(row => row.tipe_tender === 'Pelelangan Umum');
+    const prakualifikasiTenders = allRowsProcessed.filter(row => row.tipe_tender === 'Prakualifikasi');
+    const pelelanganTenders = allRowsProcessed.filter(row => row.tipe_tender === 'Pelelangan Umum');
 
     // Hitung total halaman untuk masing-masing tipe
     const totalPagesPrak = Math.ceil(prakualifikasiTenders.length / itemsPerPage);
@@ -162,17 +212,23 @@ app.get('/', (req, res) => {
     const paginatedPrakTenders = prakualifikasiTenders.slice(startIndex, startIndex + itemsPerPage);
     const paginatedPelTenders = pelelanganTenders.slice(startIndex, startIndex + itemsPerPage);
 
-    // Data yang akan dikirim ke view
+    // Data yang akan dikirim ke view, termasuk parameter pencarian
     const viewData = {
-        prakualifikasiTenders: paginatedPrakTenders,
-        pelelanganTenders: paginatedPelTenders,
-        currentPage: currentPage,
-        totalPagesPrak: totalPagesPrak,
-        totalPagesPel: totalPagesPel
+      prakualifikasiTenders: paginatedPrakTenders,
+      pelelanganTenders: paginatedPelTenders,
+      currentPage: currentPage,
+      totalPagesPrak: totalPagesPrak,
+      totalPagesPel: totalPagesPel,
+      // Parameter pencarian untuk disimpan di form
+      keyword: keyword,
+      type: type,
+      status: status,
+      totalResultsPrak: prakualifikasiTenders.length,
+      totalResultsPel: pelelanganTenders.length
     };
 
     // Debug: Log data sebelum render
-    console.log("Data dikirim ke view:", viewData);
+    console.log(`Pencarian dengan keyword: '${keyword}', type: '${type}', status: '${status}' menghasilkan ${prakualifikasiTenders.length + pelelanganTenders.length} tender`);
 
     // Render template dengan data yang sudah dipaginasi dan info pagination
     res.render('tenders', viewData);
