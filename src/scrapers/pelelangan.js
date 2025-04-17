@@ -56,9 +56,6 @@ function extractPelelanganFromHtml($) {
       const title = titleElement.length ? titleElement.text().trim() : cardBody.find('h5.card-title').text().trim();
       const detailUrlPath = titleElement.length ? titleElement.attr('href') : null;
 
-      const urlParts = detailUrlPath ? detailUrlPath.split('/') : [];
-      const potentialId = urlParts.length > 0 && urlParts[urlParts.length - 1].length > 10 ? urlParts[urlParts.length - 1] : null;
-
       const kkks = cardBody.find('small.card-subtitle strong i').text().trim();
 
       let tanggal = '';
@@ -70,63 +67,89 @@ function extractPelelanganFromHtml($) {
         batasWaktu = dateMatch[1].trim();
       }
 
-      let bidangUsahaText = '';
-      // Perbaiki cara mengambil bidang usaha, gabungkan semua teks dari span.field
-      cardBody.find('.tipe span.field').each((idx, el) => {
-        const fullText = $(el).text().trim();
-        // Hapus label "Bidang Usaha : " hanya jika ada di awal
-        const usahaText = fullText.replace(/^Bidang Usaha\s*:\s*/, '').trim();
-        if (usahaText) {
-          bidangUsahaText += usahaText + (usahaText.endsWith(';') ? ' ' : '; '); // Tambah semicolon jika belum ada
-        }
-      });
-      const bidangUsaha = bidangUsahaText.replace(/;\s*$/,'').trim(); // Hapus semicolon terakhir
+      // --- Ambil Deskripsi --- 
+      // Targetkan p.card-text pertama setelah small.card-subtitle
+      const deskripsi = cardBody.find('small.card-subtitle').nextAll('p.card-text').first().text().trim();
+      // -----------------------
 
-      const attachmentLink = cardBody.find('a.download-btn');
-      let attachments = [];
-      attachmentLink.each((idx, link) => {
-          const attachUrl = $(link).attr('data-url') || $(link).attr('href');
-          // Ambil nama dari data-name jika ada, fallback ke teks link
-          const attachName = $(link).attr('data-name') || $(link).text().replace(/<i[^>]*><\/i>\s*/, '').trim();
-          if(attachUrl && attachName && !attachUrl.startsWith('javascript:')) {
-              attachments.push({ url: attachUrl, name: attachName });
+      // --- Ambil Golongan, Jenis, dan Bidang Usaha ---
+      let golonganUsaha = '';
+      let jenisPengadaan = '';
+      let bidangUsahaFinal = '';
+      const tipeDiv = cardBody.find('div.tipe, p.tipe');
+      let combinedText = '';
+      tipeDiv.find('span.field').each((idx, el) => {
+          combinedText += $(el).text().trim() + ' | ';
+      });
+      combinedText = combinedText.replace(/\|\s*$/, '').trim();
+
+      const parts = combinedText.split('|').map(part => part.trim());
+      parts.forEach(part => {
+          if (part.toLowerCase().startsWith('golongan usaha')) {
+              golonganUsaha = part.replace(/Golongan Usaha\s*:\s*/i, '').trim();
+          } else if (part.toLowerCase().startsWith('jenis pengadaan')) {
+              jenisPengadaan = part.replace(/Jenis Pengadaan\s*:\s*/i, '').trim();
+          } else if (part.toLowerCase().startsWith('bidang usaha')) {
+              bidangUsahaFinal += (bidangUsahaFinal ? '; ' : '') + part.replace(/Bidang Usaha\s*:\s*/i, '').trim();
+          } else if (!golonganUsaha && !jenisPengadaan && !bidangUsahaFinal && part) {
+              bidangUsahaFinal = part;
+          } else if (part) {
+               bidangUsahaFinal += (bidangUsahaFinal ? '; ' : '') + part;
           }
       });
+      // ---------------------------------------------
 
-      const attachmentUrl = attachments.length > 0 ? attachments[0].url : null;
-      const attachmentName = attachments.length > 0 ? attachments[0].name : null;
+      // Kumpulkan SEMUA attachment
+      const attachments = [];
+      cardBody.find('a.download-btn').each((idx, link) => {
+          const attachUrl = $(link).attr('data-url') || $(link).attr('href');
+          // Prioritaskan data-doc-name, lalu data-name, baru teks link
+          const attachName = $(link).attr('data-doc-name') || $(link).attr('data-name') || $(link).text().replace(/<i[^>]*><\/i>\s*/, '').trim(); 
+          const attachId = $(link).attr('data-file-id');
 
-      // Ambil ID dari data-file-id attachment pertama jika ID dari URL tidak ada
-      let finalId = potentialId;
-      if (!finalId && attachments.length > 0) {
-          const firstAttachLink = cardBody.find('a.download-btn').first();
-          finalId = firstAttachLink.attr('data-file-id') || null;
-      }
-
-      const pelelangan = {
-        id: finalId, // Gunakan finalId
-        judul: title,
-        tanggal: tanggal,
-        kkks: kkks,
-        bidangUsaha: bidangUsaha,
-        batasWaktu: batasWaktu,
-        url: finalId, // URL bisa diisi ID atau link detail jika ada
-        attachmentUrl: attachmentUrl,
-        attachmentName: attachmentName
-      };
-
-      if (pelelangan.id) {
-         pelelanganData.push(pelelangan);
-            } else {
-          console.warn("Gagal mendapatkan ID untuk card:", title);
+          if(attachId && attachUrl && attachName && !attachUrl.startsWith('javascript:')) {
+              const cleanPath = attachUrl.split(';')[0];
+              const constructedUrl = `${cleanPath}?id=${attachId}`; // Bangun URL lengkap jika perlu
+              attachments.push({
+                  id: attachId,
+                  name: attachName,
+                  url: constructedUrl // Simpan URL asli
+              });
+          }
+      });
+      
+      // Gunakan ID dari attachment pertama sebagai ID utama tender
+      if (attachments.length > 0) {
+          const firstAttachment = attachments[0];
+          const pelelangan = {
+            id: firstAttachment.id, // ID utama dari attachment pertama
+            judul: title,
+            deskripsi: deskripsi,
+            golonganUsaha: golonganUsaha,
+            jenisPengadaan: jenisPengadaan,
+            bidangUsaha: bidangUsahaFinal,
+            tanggal: tanggal,
+            kkks: kkks,
+            batasWaktu: batasWaktu,
+            url: firstAttachment.id, // Atau URL detail jika ada
+            // Info attachment pertama (untuk DB)
+            attachmentUrl: firstAttachment.url, 
+            attachmentName: firstAttachment.name,
+            // Array semua attachment
+            allAttachments: attachments
+          };
+          pelelanganData.push(pelelangan);
+      } else {
+          // Jika tidak ada attachment, jangan tambahkan data (atau tangani sesuai kebutuhan)
+          console.warn(`[Pelelangan Extractor] Tidak ada attachment valid ditemukan untuk: ${title}`);
       }
 
     } catch (err) {
-      console.error('Error parsing card pelelangan:', err.message, $(element).html());
+      console.error('[Pelelangan Extractor] Error parsing card pelelangan:', err.message, $(element).html());
     }
   });
 
-  console.log(`Berhasil parse ${pelelanganData.length} item pelelangan dari HTML response.`);
+  console.log(`[Pelelangan Extractor] Berhasil parse ${pelelanganData.length} item pelelangan dari HTML response.`);
   return pelelanganData;
 }
 
@@ -179,49 +202,51 @@ async function scrapePelelangan() {
     // Filter pageData untuk hanya menyertakan data baru
     const newData = pageData.filter(tender => !existingIdsSet.has(tender.id));
 
+    // Langsung proses newData
     if (newData.length > 0) {
-      // Log jumlah data BARU yang ditemukan
-      console.log(`[Pelelangan] Ditemukan ${newData.length} data BARU di halaman ${currentPage} (dari total ${pageData.length} di halaman ini).`);
-      allData = allData.concat(newData); // Hanya tambahkan data baru ke allData
-      currentPage++;
-    } else {
-      console.log(`[Pelelangan] Tidak ada data BARU di halaman ${currentPage} (dari total ${pageData.length} di halaman ini). Mungkin akhir data baru atau halaman lama.`);
-      // Cek apakah masih ada tombol next (jika ada data lama di halaman berikutnya)
-      // Selector untuk tombol next mungkin berbeda, sesuaikan jika perlu
-      const nextPageLink = $('div.pagelinks a[title="Next"].uibutton'); // Asumsi selector sama
-      if (nextPageLink.length === 0 || nextPageLink.hasClass('disable')) {
-          hasMoreData = false;
-          console.log(`[Pelelangan] Tombol 'Next' tidak ditemukan atau disabled di halaman ${currentPage}. Menghentikan scraping.`);
+      console.log(`[Pelelangan] Ditemukan ${newData.length} data BARU.`);
+      
+      // Hapus duplikat dari newData (meskipun seharusnya sudah unik jika ID berbeda)
+      const uniquePelelangan = removeDuplicates(newData);
+      console.log(`[Pelelangan] Total data unik BARU yang akan diproses: ${uniquePelelangan.length}`);
+
+      if (uniquePelelangan.length > 0) {
+        console.log('[Pelelangan] Menyimpan data unik BARU ke database...');
+        await insertProcurementData(uniquePelelangan, 'Pelelangan Umum');
+        console.log('[Pelelangan] Data unik BARU berhasil disimpan ke database.');
+        
+        // --- Tambahkan Pemanggilan Download PDF --- 
+        console.log('[Pelelangan] Memulai pengunduhan PDF dengan Playwright untuk data Pelelangan...');
+        try {
+             // uniquePelelangan berisi data baru yang memiliki allAttachments
+             await downloadPdfsWithPlaywright(uniquePelelangan);
+             console.log('[Pelelangan] Proses pengunduhan PDF dengan Playwright selesai.');
+        } catch (playwrightError) {
+            console.error('[Pelelangan] Terjadi error saat menjalankan pengunduhan Playwright:', playwrightError);
+        }
+        // -------------------------------------------
+
       } else {
-          console.log(`[Pelelangan] Masih ada halaman berikutnya, lanjut mencari data baru...`);
-          currentPage++; // Tetap lanjut ke halaman berikutnya
+         // Ini seharusnya tidak terjadi jika newData.length > 0, tapi sebagai pengaman
+         console.log('[Pelelangan] Tidak ada data unik BARU setelah removeDuplicates (seharusnya tidak terjadi).');
       }
+
+    } else {
+      console.log(`[Pelelangan] Tidak ada data BARU yang ditemukan dalam respons AJAX.`);
     }
     
-    // Hapus pengecekan pageData.length lama
-    // if (pageData.length > 0) { ... } else { hasMoreData = false; ... }
+    // Hapus delay yang tidak perlu setelah proses
+    // await new Promise(resolve => setTimeout(resolve, 2500));
 
-    await new Promise(resolve => setTimeout(resolve, 2500));
+    // Hapus pemrosesan uniquePelelangan di luar blok if
+    // const uniquePelelangan = removeDuplicates(allData); ...
+    
+    // Kembalikan newData atau array kosong
+    return newData; 
 
-    const uniquePelelangan = removeDuplicates(allData);
-    console.log(`[Pelelangan] Total data unik BARU yang berhasil dikumpulkan: ${uniquePelelangan.length}`);
-
-    if (uniquePelelangan.length > 0) {
-      console.log('[Pelelangan] Menyimpan data unik BARU ke database...');
-      await insertProcurementData(uniquePelelangan, 'Pelelangan Umum');
-      console.log('[Pelelangan] Data unik BARU berhasil disimpan ke database.');
-      
-      // Tidak perlu panggil download PDF lagi di sini karena sudah dihandle oleh procurementList.js
-      // Jika ingin download terpisah, logika Playwright bisa dipanggil di sini juga.
-
-    } else {
-      console.log('[Pelelangan] Tidak ada data unik BARU untuk disimpan.');
-    }
-
-    return uniquePelelangan;
-
-  } catch (error) {
-    console.error(`Error saat scraping pelelangan AJAX dari ${url}:`, error.message);
+  } catch (error) { // OUTER catch
+    // Gunakan variabel url yang didefinisikan di scope luar
+    console.error(`Error saat scraping pelelangan AJAX dari ${url}:`, error.message); 
     if (error.response) {
       console.error('Status Code:', error.response.status);
       // console.error('Response Data:', error.response.data); // Hati-hati jika response besar

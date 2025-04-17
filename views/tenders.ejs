@@ -173,6 +173,25 @@
             text-decoration: none;
         }
 
+        /* Tambahkan gaya untuk tombol link asli */
+        .tender-card .btn-link-asli {
+            background-color: #f8f9fa; /* Lebih terang lagi */
+            color: #6c757d;
+            border: 1px dashed #ced4da;
+        }
+        .tender-card .btn-link-asli:hover {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+        }
+
+        /* Gaya untuk tombol disabled (opsional, bisa digabung dgn .disabled) */
+        .tender-card .btn.disabled {
+            background-color: #e9ecef;
+            color: #adb5bd;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
         /* Pesan jika data kosong */
         .empty-message {
             text-align: center;
@@ -496,13 +515,47 @@
                                 data-local-pdf="<%= tender.localPdfPath || '' %>">
                                 <i class="fas fa-info-circle"></i> Detail
                             </button>
-                            <% if (tender.attachmentUrl || tender.localPdfPath) { %>
-                                <a href="<%= tender.localPdfPath || '#' %>" 
-                                   class="btn btn-attachment <%= !tender.localPdfPath ? 'disabled' : '' %>" 
-                                   target="_blank" 
-                                   <%= !tender.localPdfPath ? 'aria-disabled="true" title="PDF tidak ditemukan secara lokal"' : `title="Buka ${tender.attachmentName || 'PDF'}"` %>>
-                                    <i class="fas fa-file-pdf"></i> <%= tender.attachmentName || 'Download PDF' %>
-                                </a>
+
+                            <!-- Logika Tombol Attachment Baru (Loop pada dbAttachments) -->
+                            <% if (tender.dbAttachments && tender.dbAttachments.length > 0) { %>
+                                <% tender.dbAttachments.forEach((attachment, index) => { %>
+                                    <% if (attachment.localPath) { %>
+                                        <%# Tombol Aktif untuk PDF Lokal %>
+                                        <a href="<%= attachment.localPath %>" class="btn btn-attachment" target="_blank" title="<%= attachment.attachment_name %>"> 
+                                            <i class="fas fa-paperclip"></i>
+                                            <%# Tampilkan nama attachment jika pendek, atau label generik %>
+                                            <% if (tender.dbAttachments.length === 1) { %>
+                                                Lihat PDF
+                                            <% } else { %>
+                                                Attachment <%= index + 1 %>
+                                            <% } %>
+                                        </a>
+                                    <% } else { %>
+                                         <%# Tombol Nonaktif atau Link Asli %>
+                                         <% if (attachment.attachment_url) { %>
+                                             <a href="<%= attachment.attachment_url %>" class="btn btn-attachment btn-link-asli" target="_blank" title="Link Asli (PDF Lokal tidak ditemukan): <%= attachment.attachment_name %>">
+                                                <i class="fas fa-external-link-alt"></i>
+                                                <% if (tender.dbAttachments.length === 1) { %>
+                                                    Link Asli
+                                                <% } else { %>
+                                                    Link Asli <%= index + 1 %>
+                                                <% } %>
+                                             </a>
+                                         <% } else { %>
+                                             <button class="btn btn-attachment disabled" title="PDF tidak ditemukan: <%= attachment.attachment_name %>">
+                                                <i class="fas fa-times-circle"></i>
+                                                <% if (tender.dbAttachments.length === 1) { %>
+                                                    PDF Hilang
+                                                <% } else { %>
+                                                    Attach <%= index + 1 %> Hilang
+                                                <% } %>
+                                             </button>
+                                         <% } %>
+                                    <% } %>
+                                <% }); %>
+                            <% } else { %>
+                                <%# Opsional: Tampilkan pesan jika tidak ada attachment sama sekali %>
+                                <!-- <span class="no-attachment">Tidak ada attachment</span> -->
                             <% } %>
                         </div>
                     </div>
@@ -584,8 +637,47 @@
                                     data-attachment-name="<%= tender.attachmentName %>">
                                 ℹ️ Detail
                             </button>
-                            <% if (tender.attachmentUrl && tender.attachmentName) { %>
-                                <a href="<%= tender.attachmentUrl %>" target="_blank" class="btn btn-attachment">📎 <%= tender.attachmentName %></a>
+                           
+                            <!-- Logika Tombol Attachment Baru (Loop pada dbAttachments) -->
+                            <% if (tender.dbAttachments && tender.dbAttachments.length > 0) { %>
+                                <% tender.dbAttachments.forEach((attachment, index) => { %>
+                                    <% if (attachment.localPath) { %>
+                                        <%# Tombol Aktif untuk PDF Lokal %>
+                                        <a href="<%= attachment.localPath %>" class="btn btn-attachment" target="_blank" title="<%= attachment.attachment_name %>"> 
+                                            <i class="fas fa-paperclip"></i>
+                                            <%# Tampilkan nama attachment jika pendek, atau label generik %>
+                                            <% if (tender.dbAttachments.length === 1) { %>
+                                                Lihat PDF
+                                            <% } else { %>
+                                                Attachment <%= index + 1 %>
+                                            <% } %>
+                                        </a>
+                                    <% } else { %>
+                                         <%# Tombol Nonaktif atau Link Asli %>
+                                         <% if (attachment.attachment_url) { %>
+                                             <a href="<%= attachment.attachment_url %>" class="btn btn-attachment btn-link-asli" target="_blank" title="Link Asli (PDF Lokal tidak ditemukan): <%= attachment.attachment_name %>">
+                                                <i class="fas fa-external-link-alt"></i>
+                                                <% if (tender.dbAttachments.length === 1) { %>
+                                                    Link Asli
+                                                <% } else { %>
+                                                    Link Asli <%= index + 1 %>
+                                                <% } %>
+                                             </a>
+                                         <% } else { %>
+                                             <button class="btn btn-attachment disabled" title="PDF tidak ditemukan: <%= attachment.attachment_name %>">
+                                                <i class="fas fa-times-circle"></i>
+                                                <% if (tender.dbAttachments.length === 1) { %>
+                                                    PDF Hilang
+                                                <% } else { %>
+                                                    Attach <%= index + 1 %> Hilang
+                                                <% } %>
+                                             </button>
+                                         <% } %>
+                                    <% } %>
+                                <% }); %>
+                            <% } else { %>
+                                <%# Opsional: Tampilkan pesan jika tidak ada attachment sama sekali %>
+                                <!-- <span class="no-attachment">Tidak ada attachment</span> -->
                             <% } %>
                         </div>
                     </div>

@@ -20,10 +20,7 @@ function extractProcurementFromHtml($) {
     try {
       const card = $(element);
       const cardBody = card.find('.card-body');
-      
-      // Ekstrak ID dari URL attachment
-      const attachmentLink = cardBody.find('a.download-btn');
-      const fileId = attachmentLink.attr('data-file-id') || '';
+      if (!cardBody.length) return; // Lewati jika tidak ada body
       
       // Ekstrak judul
       const title = cardBody.find('h5.card-title').text().trim();
@@ -40,41 +37,89 @@ function extractProcurementFromHtml($) {
         tanggal = dateMatch[1].trim();
         batasWaktu = dateMatch[1].trim();
       }
+
+      // --- Ambil Deskripsi ---
+      // Targetkan p.card-text pertama setelah h5.card-title
+      const deskripsi = cardBody.find('h5.card-title').nextAll('p.card-text').first().text().trim();
+      // -----------------------
+
+      // --- Ambil Golongan, Jenis, dan Bidang Usaha ---
+      let golonganUsaha = '';
+      let jenisPengadaan = '';
+      let bidangUsahaFinal = '';
+      const tipeDiv = cardBody.find('div.tipe, p.tipe'); // Cari div atau p dengan kelas tipe
+      let combinedText = '';
+      tipeDiv.find('span.field').each((idx, el) => {
+          combinedText += $(el).text().trim() + ' | '; // Gabungkan teks dari semua span field
+      });
+      combinedText = combinedText.replace(/\|\s*$/, '').trim(); // Hapus pemisah terakhir
+
+      // Parsing teks gabungan
+      const parts = combinedText.split('|').map(part => part.trim());
+      parts.forEach(part => {
+          if (part.toLowerCase().startsWith('golongan usaha')) {
+              golonganUsaha = part.replace(/Golongan Usaha\s*:\s*/i, '').trim();
+          } else if (part.toLowerCase().startsWith('jenis pengadaan')) {
+              jenisPengadaan = part.replace(/Jenis Pengadaan\s*:\s*/i, '').trim();
+          } else if (part.toLowerCase().startsWith('bidang usaha')) {
+              // Kumpulkan semua bagian bidang usaha jika terpisah
+              bidangUsahaFinal += (bidangUsahaFinal ? '; ' : '') + part.replace(/Bidang Usaha\s*:\s*/i, '').trim();
+          } else if (!golonganUsaha && !jenisPengadaan && !bidangUsahaFinal && part) {
+              // Fallback jika formatnya berbeda, anggap bagian pertama non-label adalah bidang usaha
+              bidangUsahaFinal = part;
+          } else if (part) {
+              // Tambahkan ke bidang usaha jika tidak cocok dengan yang lain dan tidak kosong
+               bidangUsahaFinal += (bidangUsahaFinal ? '; ' : '') + part;
+          }
+      });
+      // ---------------------------------------------
       
-      // Ekstrak dan format bidang usaha
-      const bidangUsaha = cardBody.find('.tipe .field')
-        .text()
-        .replace(/Bidang Usaha\s*:\s*/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-      
-      // Ekstrak URL dan attachment
-      const filePath = attachmentLink.attr('data-url') || '';
-      const fileName = attachmentLink.attr('data-doc-name') || attachmentLink.attr('data-name') || '';
-      
-      // Buat attachmentUrl dengan menggabungkan path dan ID
-      let constructedAttachmentUrl = null;
-      if (fileId && filePath && !filePath.startsWith('javascript:')) {
-        // Bersihkan path jika ada ;jsessionid (meskipun seharusnya tidak)
-        const cleanPath = filePath.split(';')[0]; 
-        constructedAttachmentUrl = `${cleanPath}?id=${fileId}`;
+      // Kumpulkan SEMUA attachment
+      const attachments = [];
+      cardBody.find('a.download-btn').each((idx, link) => {
+        const fileId = $(link).attr('data-file-id');
+        const filePath = $(link).attr('data-url');
+        const fileName = $(link).attr('data-doc-name') || $(link).attr('data-name') || '';
+
+        if (fileId && fileName && filePath && !filePath.startsWith('javascript:')) {
+          const cleanPath = filePath.split(';')[0]; 
+          const constructedUrl = `${cleanPath}?id=${fileId}`;
+          attachments.push({
+            id: fileId,
+            name: fileName,
+            url: constructedUrl // Simpan URL asli per attachment jika perlu
+          });
+        }
+      });
+
+      // Hanya proses jika ada attachment valid
+      if (attachments.length > 0) {
+        const firstAttachment = attachments[0]; // Ambil attachment pertama untuk data utama
+        const procurement = {
+          // Gunakan ID attachment pertama sebagai ID utama tender (untuk DB)
+          id: firstAttachment.id, 
+          judul: title,
+          deskripsi: deskripsi,
+          golonganUsaha: golonganUsaha,
+          jenisPengadaan: jenisPengadaan,
+          bidangUsaha: bidangUsahaFinal,
+          tanggal: tanggal,
+          kkks: kkks,
+          batasWaktu: batasWaktu,
+          // Info attachment pertama (untuk kompatibilitas DB saat ini)
+          url: firstAttachment.id, // Atau bisa juga firstAttachment.url jika lebih relevan
+          attachmentUrl: firstAttachment.url, 
+          attachmentName: firstAttachment.name,
+          // Array berisi SEMUA attachment untuk diteruskan ke downloader
+          allAttachments: attachments 
+        };
+        procurementData.push(procurement);
+      } else {
+         console.warn(`[Procurement Extractor] Tidak ada attachment valid ditemukan untuk: ${title}`);
       }
       
-      const procurement = {
-        id: fileId,
-        judul: title,
-        tanggal: tanggal,
-        kkks: kkks,
-        bidangUsaha: bidangUsaha,
-        batasWaktu: batasWaktu,
-        url: fileId,
-        attachmentUrl: constructedAttachmentUrl,
-        attachmentName: fileName
-      };
-      
-      procurementData.push(procurement);
     } catch (err) {
-      console.log('Error parsing card:', err.message);
+      console.error('[Procurement Extractor] Error parsing card:', err.message, $(element).html());
     }
   });
   

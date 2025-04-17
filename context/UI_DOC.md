@@ -35,7 +35,7 @@ Dokumen ini menjelaskan logika antarmuka pengguna (UI) dari aplikasi web Express
 *   **Logika**:
     *   Form menggunakan metode `GET` untuk mengirim parameter pencarian ke route `/`.
     *   **Filter**:
-        *   `keyword`: Mencari teks di kolom `judul`, `bidangUsaha`, dan `kkks` (menggunakan `LIKE %...%`).
+        *   `keyword`: Mencari teks di kolom `judul`, `deskripsi`, `bidangUsaha`, `kkks`, `golonganUsaha`, dan `jenisPengadaan` (menggunakan `LIKE %...%`).
         *   `type`: Memfilter berdasarkan `tipe_tender` ('Prakualifikasi' atau 'Pelelangan Umum').
         *   `status`: Memfilter berdasarkan apakah tender 'active' (batas waktu >= hari ini) atau 'expired' (batas waktu < hari ini). Logika perbandingan tanggal dilakukan di query SQL.
     *   Backend (`server.js`) membaca `req.query` (keyword, type, status) dan membangun klausa `WHERE` pada query SQL secara dinamis.
@@ -47,13 +47,13 @@ Dokumen ini menjelaskan logika antarmuka pengguna (UI) dari aplikasi web Express
 
 *   **File Frontend**: `views/tenders.ejs`, `views/dashboard.ejs`
 *   **Logika Tampilan**:
-    *   Menampilkan informasi dasar: Judul, Tanggal Tayang (tanggal scraping), Batas Waktu, KKKS, Bidang Usaha.
+    *   Menampilkan informasi dasar: Judul, Tanggal Tayang (tanggal scraping), Batas Waktu, KKKS, Bidang Usaha, Deskripsi, Golongan Usaha, Jenis Pengadaan.
     *   **Label Status**:
         *   **"New"**: Ditampilkan jika tender ditambahkan ke database dalam 24 jam terakhir. Logika pengecekan (`checkIsNew`) ada di `server.js`, menambahkan flag `isNew` ke data tender. Ditampilkan jika `tender.isNew === true`.
         *   **"Expired"**: Ditampilkan jika `batasWaktu` tender sudah lewat (lebih kecil atau sama dengan tanggal hari ini). Logika pengecekan (`checkIsExpired`) ada di `server.js`, menambahkan flag `isExpired` ke data tender. Ditampilkan jika `tender.isExpired === true`.
     *   **Tombol Aksi (di Halaman Utama)**:
         *   "Detail": Membuka Modal Detail.
-        *   Link PDF: Menampilkan nama file attachment dan mengarah ke URL `/local-pdfs/:filename` jika file PDF ditemukan di direktori lokal (`src/download pdf/`). Logika pengecekan file dan penambahan `localPdfPath` dilakukan di `server.js`. Tombol menjadi non-aktif jika PDF tidak ditemukan lokal.
+        *   Link PDF: Menampilkan nama file attachment (dari tabel `attachments`) dan mengarah ke URL `/local-pdfs/:filename` jika file PDF yang sesuai ditemukan di direktori lokal (`src/download pdf/`). Logika pengambilan data attachment dan pengecekan file lokal (`addLocalPdfPath`) dilakukan di `server.js`. Tombol menjadi non-aktif atau tidak ditampilkan jika PDF tidak ditemukan lokal.
 
 ### c. Pagination (di Halaman Utama)
 
@@ -73,7 +73,8 @@ Dokumen ini menjelaskan logika antarmuka pengguna (UI) dari aplikasi web Express
     *   Modal disembunyikan secara default (CSS `display: none`).
     *   Tombol "Detail" pada kartu tender memiliki atribut `data-*` yang menyimpan informasi detail tender.
     *   Script JavaScript menggunakan *event delegation* untuk menangkap klik pada tombol "Detail".
-    *   Saat diklik, script membaca `data-*` dari tombol yang diklik, mengisi konten modal (judul, tanggal, batas, dll.), dan menampilkan modal (mengubah `display` menjadi `flex`).
+    *   Saat diklik, script membaca `data-*` dari tombol yang diklik, mengisi konten modal (judul, tanggal, batas, kkks, bidang usaha, deskripsi, golongan usaha, jenis pengadaan, dll.), dan menampilkan modal (mengubah `display` menjadi `flex`).
+    *   Daftar attachment (nama file dari tabel `attachments`) kemungkinan ditampilkan di dalam modal, beserta link unduh jika file PDF tersedia secara lokal (menggunakan path yang dihasilkan oleh `addLocalPdfPath`).
     *   Tombol close (`&times;`) dan klik di luar area konten modal akan menyembunyikan modal kembali.
 
 ### e. Kalender Deadline (di Dashboard)
@@ -96,13 +97,13 @@ Dokumen ini menjelaskan logika antarmuka pengguna (UI) dari aplikasi web Express
 ## 5. Alur Data Backend ke Frontend
 
 1.  Request masuk ke route Express (`/` atau `/dashboard`).
-2.  Handler route di `server.js` mengambil data dari database SQLite (`database.db`) menggunakan `getDb()` dan query SQL.
+2.  Handler route di `server.js` mengambil data dari database SQLite (`database.db`) menggunakan `getDb()` dan query SQL. Data tender utama (`procurement_list`) diambil, seringkali dengan JOIN atau query terpisah untuk mendapatkan data terkait dari tabel `attachments`.
 3.  Data mentah dari database diproses:
-    *   Path PDF lokal ditambahkan (`addLocalPdfPath`).
+    *   Path PDF lokal ditambahkan (`addLocalPdfPath`), menggunakan data nama file dari `attachments` dan mengecek keberadaan file di `src/download pdf/`.
     *   Flag status ditambahkan (`checkIsExpired`, `checkIsNew`).
     *   Data difilter berdasarkan parameter pencarian (khusus route `/`).
     *   Data di-slice untuk pagination (khusus route `/`).
     *   Data disiapkan untuk kalender (khusus route `/dashboard`).
-4.  Objek data yang sudah diproses (misalnya `viewData` atau `dashboardData`) dilewatkan ke fungsi `res.render('nama_template', objek_data)`.
+4.  Objek data yang sudah diproses (misalnya `viewData` atau `dashboardData`), yang kini mungkin menyertakan array attachments per tender, dilewatkan ke fungsi `res.render('nama_template', objek_data)`.
 5.  Engine EJS merender file template (`.ejs`) dengan mengganti variabel EJS (`<%= ... %>`) dan menjalankan logika EJS (`<% ... %>`) menggunakan data yang diterima dari backend.
 6.  HTML hasil render dikirim sebagai respons ke browser klien. 

@@ -166,7 +166,8 @@ app.get('/', (req, res) => {
   const itemsPerPage = 6;
   const startIndex = (currentPage - 1) * itemsPerPage;
 
-  db.all(sql, sqlParams, (err, allRows) => {
+  // Ambil data tender utama dulu
+  db.all(sql, sqlParams, async (err, allRows) => { // Jadikan callback ini async
     if (err) {
       console.error("Error fetching data:", err.message);
       res.status(500).send("Error mengambil data dari database");
@@ -191,39 +192,84 @@ app.get('/', (req, res) => {
       });
     };
 
-    // --- Modifikasi Data Tender untuk Menyertakan Path PDF Lokal --- 
+    // --- Modifikasi Data Tender untuk Menyertakan Path PDF Lokal (Revisi) ---
     const addLocalPdfPath = (tender) => {
-        // Gunakan sanitizeFilename dari helpers
-        const pdfFilename = sanitizeFilename(tender.attachmentName);
-        
-        if (pdfFilename) {
-            // --- Logika Pengecekan File Baru ---
-            try {
-                const filesInDir = fs.readdirSync(localPdfDir);
-                const fileExists = filesInDir.includes(pdfFilename);
-                console.log(`[PDF Check Dir /] Mengecek file: ${pdfFilename} di ${localPdfDir}. Hasil readdirSync.includes: ${fileExists}`);
-                if (fileExists) {
-                    const potentialPath = path.join(localPdfDir, pdfFilename);
-                    return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(pdfFilename)}` };
-                }
-            } catch (readdirError) {
-                console.error(`[PDF Check Dir /] Error membaca direktori ${localPdfDir}:`, readdirError);
-            }
-            // ----------------------------------
+        let filesInDir = null;
+        try {
+            // Baca direktori sekali saja jika belum
+            filesInDir = fs.readdirSync(localPdfDir);
+        } catch (readdirError) {
+            console.error(`[PDF Check DB Attach /] Error membaca direktori ${localPdfDir}:`, readdirError);
+            // Jika direktori tidak bisa dibaca, set dbAttachments kosong agar loop tidak jalan
+            tender.dbAttachments = []; 
+            return tender; 
         }
-        // Fallback (jika perlu, tapi kita fokus pada pengecekan utama dulu)
-        // const fallbackFilename = `attachment_${tender.id}.pdf`; 
-        // const fallbackPath = path.join(localPdfDir, fallbackFilename);
-        // if (tender.id && fs.existsSync(fallbackPath)) { ... }
-        
-        // Jika tidak ditemukan dengan metode baru, kembalikan tender asli
-        console.log(`[PDF Check Dir /] File TIDAK DITEMUKAN untuk attachmentName: ${tender.attachmentName} (sanitized: ${pdfFilename})`);
-        return tender;
-    };
 
-    const allRowsWithPdf = allRows.map(addLocalPdfPath);
-    const allRowsProcessed = processTenders(allRowsWithPdf);
-    // --- Akhir Modifikasi Data Tender ---
+        // Proses attachments yang diambil dari DB
+        if (tender.dbAttachments && tender.dbAttachments.length > 0 && filesInDir) {
+            tender.dbAttachments.forEach(attachment => {
+                // Gunakan attachment_name dari DB
+                if (attachment.attachment_name) { 
+                    const pdfFilename = sanitizeFilename(attachment.attachment_name);
+                    if (pdfFilename) {
+                        const fileExists = filesInDir.includes(pdfFilename);
+                        console.log(`[PDF Check DB Attach /] Mengecek file: ${pdfFilename} (dari DB attachment ${attachment.attachment_id}). Hasil readdirSync.includes: ${fileExists}`);
+                        if (fileExists) {
+                            // Tambahkan localPath ke objek attachment DARI DB
+                            attachment.localPath = `/local-pdfs/${encodeURIComponent(pdfFilename)}`;
+                        } else {
+                            console.log(`[PDF Check DB Attach /] File lokal TIDAK DITEMUKAN untuk attachment: ${attachment.attachment_name} (sanitized: ${pdfFilename})`);
+                        }
+                    }
+                } else {
+                    console.warn(`[PDF Check DB Attach /] Attachment ${attachment.attachment_id} untuk tender ${tender.id} tidak memiliki attachment_name.`);
+                }
+            });
+            
+            // Set localPdfPath utama jika attachment pertama punya path lokal
+            // Ini hanya untuk kompatibilitas jika bagian lain kode masih menggunakannya
+            if (tender.dbAttachments[0] && tender.dbAttachments[0].localPath) {
+                tender.localPdfPath = tender.dbAttachments[0].localPath;
+            }
+
+        } else if (filesInDir) { // Hanya log jika direktori terbaca tapi tidak ada attachment
+            console.log(`[PDF Check DB Attach /] Tender ${tender.judul || tender.id} tidak memiliki dbAttachments di DB.`);
+        }
+        
+        return tender; // Kembalikan tender yang sudah dimodifikasi
+    };
+    // ---------------------------------------------------------------
+
+    // --- Proses Setiap Tender untuk Menambahkan Attachments dari DB & Path Lokal ---
+    const processedTenders = [];
+    for (const tender of allRows) {
+        // Query attachments untuk tender ini
+        try {
+            const attachmentRows = await new Promise((resolve, reject) => {
+                db.all('SELECT attachment_id, attachment_name, attachment_url FROM attachments WHERE tender_id = ? ORDER BY attachment_order', 
+                       [tender.id], (attachErr, rows) => {
+                    if (attachErr) {
+                        console.error(`Error fetching attachments for tender ${tender.id}:`, attachErr.message);
+                        reject(attachErr);
+                    } else {
+                        resolve(rows);
+                    }
+                });
+            });
+            tender.dbAttachments = attachmentRows; // Simpan hasil query ke tender
+        } catch (attachQueryError) {
+            tender.dbAttachments = []; // Set array kosong jika query gagal
+        }
+        
+        // Proses untuk flag isExpired, isNew, dan localPdfPath
+        const tenderWithFlags = processTenders([tender])[0]; // processTenders menerima dan mengembalikan array
+        const tenderFinal = addLocalPdfPath(tenderWithFlags);
+        processedTenders.push(tenderFinal);
+    }
+    // --- Akhir Pemrosesan per Tender ---
+    
+    // Gunakan data yang sudah diproses sepenuhnya (processedTenders)
+    const allRowsProcessed = processedTenders;
 
     // Pisahkan data berdasarkan tipe tender (setelah diproses)
     const prakualifikasiTenders = allRowsProcessed.filter(row => row.tipe_tender === 'Prakualifikasi');
