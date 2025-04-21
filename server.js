@@ -131,9 +131,11 @@ app.get('/', (req, res) => {
   const conditions = [];
   
   if (keyword) {
-    conditions.push('(judul LIKE ? OR bidangUsaha LIKE ? OR kkks LIKE ? OR deskripsi LIKE ? OR golonganUsaha LIKE ? OR jenisPengadaan LIKE ?)');
+    // Tambahkan pencarian berdasarkan ID
+    conditions.push('(id LIKE ? OR judul LIKE ? OR bidangUsaha LIKE ? OR kkks LIKE ? OR deskripsi LIKE ? OR golonganUsaha LIKE ? OR jenisPengadaan LIKE ?)');
     const searchPattern = `%${keyword}%`;
-    sqlParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+    // Tambahkan parameter ID ke depan
+    sqlParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
   }
   
   if (type) {
@@ -347,9 +349,17 @@ app.get('/dashboard', (req, res) => {
             // Log 3: Cek Hasil Parsing Tanggal Per Baris (opsional, bisa sangat banyak)
             // console.log(`   - Parsing '${row.batasWaktu}' -> ${deadlineDate}`); 
             if (!deadlineDate) return null;
+            // Sertakan data tambahan di extendedProps
             return {
                 title: `Deadline: ${row.judul.substring(0, 25)}...`, // Judul dipendekkan sedikit
                 start: deadlineDate,
+                extendedProps: {
+                    tenderId: row.id,
+                    fullTitle: row.judul,
+                    kkks: row.kkks,
+                    batasWaktu: row.batasWaktu,
+                    tipeTender: row.tipe_tender
+                }
             };
         }) : [];
         
@@ -405,6 +415,7 @@ app.get('/dashboard', (req, res) => {
             totalPrakualifikasi: totalPrakualifikasi,
             totalPelelangan: totalPelelangan,
             latestTenders: latestTendersProcessed, 
+            // Kirim event yang sudah difilter
             calendarEvents: calendarEvents 
         };
 

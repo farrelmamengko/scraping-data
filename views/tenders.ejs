@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SKK Migas Tender List</title>
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
         /* Reset dasar dan gaya body */
         * {
@@ -14,25 +16,25 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: #eef2f7; /* Warna latar belakang sedikit lebih segar */
-            color: #343a40; /* Warna teks utama gelap */
+            background-color: #ffffff; /* Ubah ke putih */
+            color: #333333; /* Gelapkan teks default */
             line-height: 1.6;
             padding: 0 20px 20px 20px;
         }
 
         /* Header sederhana */
         .app-header {
-            background-color: #ffffff;
+            background-color: #ffffff; /* Tetap putih */
             padding: 15px 40px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); /* Sedikit shadow */
             margin-bottom: 40px;
-            border-bottom: 1px solid #e1e4e8;
+            border-bottom: 2px solid #e71e25; /* Border bawah merah */
             display: flex; /* Tambahkan flexbox */
             justify-content: space-between; /* Posisikan judul dan tombol */
             align-items: center; /* Sejajarkan vertikal */
         }
         .app-header h1 {
-            color: #17a2b8; /* Warna teal sebagai primary */
+            color: #e71e25; /* Warna merah GDA */
             font-size: 1.8em;
             font-weight: 700;
             text-align: left;
@@ -53,10 +55,10 @@
 
         /* Judul Section */
         h2 {
-            color: #17a2b8; /* Warna teal */
+            color: #333333; /* Ubah ke hitam */
             margin-bottom: 25px;
             padding-bottom: 10px;
-            border-bottom: 2px solid #e1e4e8;
+            border-bottom: 2px solid #e71e25; /* Border merah */
             font-weight: 600;
             font-size: 1.6em;
         }
@@ -65,80 +67,132 @@
         .tender-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-            gap: 20px;
+            gap: 25px; /* Sedikit tambah gap */
         }
 
-        /* Gaya Kartu Tender */
+        /* --- Refined Tender Card Styles --- */
         .tender-card {
             background-color: #ffffff;
-            border: 1px solid #e1e4e8;
+            border: 1px solid #dee2e6; /* Border abu-abu sedikit lebih jelas */
             border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
             display: flex;
             flex-direction: column;
-            transition: box-shadow 0.2s ease-in-out, transform 0.2s ease-in-out;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            overflow: hidden; /* Untuk memastikan border-radius bekerja baik */
         }
 
         .tender-card:hover {
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-            transform: translateY(-3px);
+            transform: translateY(-4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.09);
         }
 
-        .tender-card h5 {
-            font-size: 1.1em;
-            color: #138496; /* Teal lebih gelap untuk judul kartu */
-            margin-bottom: 8px;
-            font-weight: 600;
-            line-height: 1.3;
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start; /* Agar title dan status align atas */
+            padding: 15px 20px;
+            border-bottom: 1px solid #eeeeee;
+            background-color: #f8f9fa; /* Latar header kartu */
+            gap: 10px;
         }
 
-        .tender-card .tender-meta {
-            font-size: 0.8em;
-            color: #6c757d; /* Abu-abu standar */
-            margin-bottom: 15px;
-            border-bottom: 1px solid #e1e4e8;
-            padding-bottom: 10px;
-        }
-        .tender-card .tender-meta strong {
-            color: #343a40;
+        .card-title {
+            font-size: 1.15em; /* Sedikit lebih besar */
+            color: #333333;
+            margin: 0;
             font-weight: 600;
+            line-height: 1.4;
         }
-        .tender-card .tender-meta span {
-            margin-right: 10px;
+
+        .card-status {
+            display: flex;
+            flex-direction: column; /* Susun status jika ada > 1 (jarang terjadi) */
+            gap: 5px;
+            flex-shrink: 0; /* Agar badge tidak mengecil */
+        }
+
+        .badge {
             display: inline-block;
+            padding: 4px 10px;
+            font-size: 0.75em;
+            font-weight: 600;
+            line-height: 1;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: baseline;
+            border-radius: 15px; /* Pill shape */
         }
 
-        .tender-card .tender-field {
+        .status-new { background-color: #198754; color: white; } /* Hijau Bootstrap */
+        .status-open { background-color: #0d6efd; color: white; } /* Biru Bootstrap */
+        .status-closed { background-color: #6c757d; color: white; } /* Abu-abu Bootstrap */
+
+        .card-body {
+            padding: 15px 20px;
+            flex-grow: 1; /* Agar body mengisi ruang */
+        }
+
+        .info-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
             font-size: 0.9em;
-            margin-bottom: 15px;
-            color: #343a40;
-            flex-grow: 1;
+            color: #6c757d;
         }
 
-        .tender-card .tender-field strong {
+        .info-icon {
+            width: 20px; /* Lebar ikon */
+            text-align: center;
+            margin-right: 8px;
+            color: #adb5bd; /* Warna ikon abu-abu */
+        }
+
+        .info-label {
+            font-weight: 500;
+            margin-right: 5px;
+            color: #495057;
+        }
+
+        .info-value {
+            color: #333333;
+        }
+
+        .info-row.deadline-expired .info-value {
+            color: #dc3545; /* Warna merah jika deadline expired */
+            font-weight: 500;
+        }
+
+        .bidang-usaha {
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+        .bidang-usaha strong {
             display: block;
             font-weight: 600;
             margin-bottom: 4px;
-            color: #6c757d;
+            color: #495057;
         }
-        .tender-card .tender-field p {
+        .bidang-usaha p {
             margin: 0;
+            color: #333333;
+            line-height: 1.5;
         }
 
-        .tender-card .tender-actions {
-            margin-top: auto;
-            padding-top: 15px;
-            border-top: 1px solid #e1e4e8;
+        .card-actions {
+            padding: 15px 20px;
+            border-top: 1px solid #eeeeee;
+            background-color: #f8f9fa; /* Latar footer kartu */
             display: flex;
             gap: 10px;
-            flex-wrap: wrap;
+            flex-wrap: wrap; /* Biarkan tombol wrap jika perlu */
         }
 
-        .tender-card .btn {
+        .btn {
+             /* Gaya dasar tombol jika diperlukan */
             display: inline-flex;
             align-items: center;
-            padding: 8px 15px; /* Sedikit lebih besar */
+            padding: 8px 15px;
             border-radius: 6px;
             text-decoration: none;
             font-size: 0.85em;
@@ -148,49 +202,41 @@
             cursor: pointer;
             transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
         }
-        .tender-card .btn:active {
-             transform: scale(0.98); /* Efek klik */
+         .btn:active {
+             transform: scale(0.98);
         }
-        .tender-card .btn i { 
+         .btn i { 
              margin-right: 5px;
         }
 
-        .tender-card .btn-detail {
-            background-color: #e2f7fa; /* Latar belakang terang teal */
-            color: #138496; /* Teal gelap */
+        .btn-detail { /* Tombol Primer */
+            background-color: #e71e25;
+            color: white;
         }
-        .tender-card .btn-detail:hover {
-            background-color: #c1f0f7;
-            text-decoration: none;
-        }
+        .btn-detail:hover { background-color: #c41219; }
 
-        .tender-card .btn-attachment {
-            background-color: #e9ecef; /* Abu-abu terang */
-            color: #495057; /* Abu-abu gelap */
+        .btn-pdf { /* Tombol Sekunder */
+            background-color: #6c757d;
+            color: white;
         }
-        .tender-card .btn-attachment:hover {
-            background-color: #dee2e6;
-            text-decoration: none;
-        }
+        .btn-pdf:hover { background-color: #5a6268; }
 
-        /* Tambahkan gaya untuk tombol link asli */
-        .tender-card .btn-link-asli {
-            background-color: #f8f9fa; /* Lebih terang lagi */
+        .btn-link-asli { /* Tombol Outline/Link */
+            background-color: transparent;
             color: #6c757d;
-            border: 1px dashed #ced4da;
+            border: 1px solid #ced4da;
         }
-        .tender-card .btn-link-asli:hover {
-            background-color: #e9ecef;
-            border-color: #adb5bd;
-        }
+        .btn-link-asli:hover { background-color: #e9ecef; color: #495057; }
 
-        /* Gaya untuk tombol disabled (opsional, bisa digabung dgn .disabled) */
-        .tender-card .btn.disabled {
+        .btn.disabled {
             background-color: #e9ecef;
             color: #adb5bd;
             cursor: not-allowed;
             opacity: 0.7;
+            border: 1px solid #ced4da;
         }
+        /* Hapus style lama yang mungkin konflik jika perlu */
+        /* .tender-card h5, .tender-card .tender-meta, dll. */
 
         /* Pesan jika data kosong */
         .empty-message {
@@ -220,32 +266,32 @@
             display: block;
             min-width: 38px; 
             padding: 9px 13px;
-            color: #17a2b8;
-            border: 1px solid #ced4da;
+            color: #e71e25; /* Merah GDA */
+            border: 1px solid #dddddd; /* Border abu */
             border-radius: 6px;
             text-decoration: none;
             text-align: center;
-            background-color: #ffffff;
+            background-color: #ffffff; /* Putih */
             transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
             box-shadow: 0 1px 1px rgba(0,0,0,0.05);
         }
         .pagination li a:hover {
-            background-color: #f1f9fa;
-            border-color: #17a2b8;
+            background-color: #f8f8f8;
+            border-color: #e71e25; /* Border Merah GDA */
             text-decoration: none;
         }
         .pagination li.active a {
-            background-color: #17a2b8;
+            background-color: #e71e25; /* Merah GDA */
             color: #ffffff;
-            border-color: #17a2b8;
+            border-color: #e71e25; /* Merah GDA */
             font-weight: bold;
-            box-shadow: 0 2px 4px rgba(23, 162, 184, 0.4);
+            box-shadow: 0 2px 4px rgba(231, 30, 37, 0.4);
         }
         .pagination li.disabled a {
             color: #adb5bd;
             pointer-events: none;
-            background-color: #e9ecef;
-            border-color: #ced4da;
+            background-color: #f0f0f0; /* Abu terang */
+            border-color: #dddddd; /* Border abu */
             box-shadow: none;
         }
 
@@ -275,8 +321,8 @@
         /* Tombol Navigasi Header */
         .btn-header-nav {
             padding: 8px 18px;
-            background-color: #17a2b8;
-            color: #ffffff;
+            background-color: #e71e25; /* Merah GDA */
+            color: #ffffff; /* Putih */
             border-radius: 6px;
             text-decoration: none;
             font-weight: 500;
@@ -284,14 +330,14 @@
             transition: background-color 0.2s ease;
         }
         .btn-header-nav:hover {
-            background-color: #138496;
+            background-color: #c41219; /* Merah gelap hover */
             color: #ffffff;
             text-decoration: none;
         }
 
         /* Gaya untuk label Expired */
         .expired-label {
-            background-color: #dc3545; /* Warna merah standar untuk danger/warning */
+            background-color: #dc3545; /* Tetap merah standar (atau bisa disamakan #e71e25) */
             color: #ffffff;
             font-size: 0.75em;
             padding: 3px 8px;
@@ -303,7 +349,7 @@
 
         /* Gaya untuk label New (BARU) */
         .new-label {
-            background-color: #28a745; /* Warna hijau */
+            background-color: #28a745; /* Tetap hijau standar untuk kontras */
             color: #ffffff;
             font-size: 0.75em;
             padding: 3px 8px;
@@ -315,18 +361,18 @@
 
         /* Panel Pencarian */
         .search-panel {
-            background-color: #ffffff;
-            border: 1px solid #e1e4e8;
+            background-color: #f8f9fa; /* Latar abu terang */
+            border: 1px solid #dee2e6;
             border-radius: 8px;
-            padding: 20px;
+            padding: 20px 25px; /* Sesuaikan padding */
             margin-bottom: 30px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            box-shadow: none; /* Hapus shadow jika terlalu ramai */
         }
 
         .search-form {
             display: flex;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 20px; /* Sesuaikan gap */
             align-items: flex-end;
         }
 
@@ -336,18 +382,19 @@
 
         .search-field label {
             display: block;
-            font-size: 0.9em;
+            font-size: 0.85em; /* Kecilkan label */
             margin-bottom: 5px;
-            color: #6c757d;
+            color: #495057;
             font-weight: 500;
         }
 
         .search-field input, .search-field select {
             width: 100%;
-            padding: 8px 12px;
+            padding: 9px 12px; /* Sesuaikan padding input */
             border: 1px solid #ced4da;
-            border-radius: 4px;
-            font-size: 0.95em;
+            border-radius: 6px;
+            font-size: 0.9em;
+            background-color: #ffffff;
         }
 
         .search-buttons {
@@ -365,44 +412,51 @@
             text-align: center;
         }
 
+        /* Tombol Cari */
         .btn-search {
-            background-color: #17a2b8;
+            background-color: #e71e25; /* Merah GDA */
             color: white;
             border: none;
         }
 
         .btn-search:hover {
-            background-color: #138496;
+            background-color: #c41219; /* Merah gelap hover */
         }
 
-        .btn-reset {
-            background-color: #e9ecef;
-            color: #495057;
-            border: 1px solid #ced4da;
+        /* Tombol Reset */
+        .btn-reset { /* Tombol reset abu-abu */
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: background-color 0.2s ease;
         }
-
-        .btn-reset:hover {
-            background-color: #dee2e6;
-        }
+        .btn-reset:hover { background-color: #5a6268; }
 
         /* Informasi Hasil Pencarian */
         .search-results-info {
             margin-bottom: 20px;
             padding: 10px 15px;
-            background-color: #f8f9fa;
-            border: 1px solid #e1e4e8;
+            background-color: #fff0f0; /* Latar belakang merah muda sangat terang */
+            border: 1px solid #ffd9d9; /* Border merah muda */
             border-radius: 4px;
             font-size: 0.9em;
         }
 
         .search-results-info p {
             margin: 0;
-            color: #495057;
+            color: #555555;
         }
 
         .search-results-info strong {
             margin: 0 5px;
-            color: #17a2b8;
+            color: #e71e25; /* Merah GDA */
         }
 
         /* Media query untuk layar kecil */
@@ -416,14 +470,66 @@
             }
         }
 
+        /* --- Navigasi Atas Sederhana --- */
+        .app-nav {
+            background-color: #f8f9fa; /* Warna latar nav */
+            padding: 10px 40px;
+            border-bottom: 1px solid #dee2e6;
+            margin-bottom: 30px; /* Kurangi margin bawah sedikit */
+            margin-top: -40px; /* Tarik ke atas menempel header */
+            position: relative; /* Agar bisa sedikit overlap jika perlu */
+            z-index: 5; /* Di bawah header tapi di atas konten */
+        }
+
+        .app-nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            gap: 25px; /* Tambah jarak antar link */
+        }
+
+        .app-nav a {
+            text-decoration: none;
+            color: #495057;
+            font-weight: 500;
+            padding: 8px 0; /* Sedikit padding vertikal */
+            border-bottom: 3px solid transparent; /* Border lebih tebal */
+            transition: color 0.2s ease, border-bottom-color 0.2s ease;
+            font-size: 0.95em;
+        }
+
+        .app-nav a:hover {
+            color: #e71e25;
+        }
+
+        .app-nav a.active { /* Gaya untuk link aktif */
+            color: #e71e25;
+            border-bottom-color: #e71e25;
+            font-weight: 600;
+        }
+
+        .back-link-header:hover {
+            background-color: #c41219; /* Merah Gelap Hover */
+            color: #ffffff;
+            text-decoration: none;
+        }
+
     </style>
 </head>
 <body>
 
 <header class="app-header">
-    <h1>SKK Migas Tender Dashboard</h1>
-    <a href="/dashboard" class="btn btn-header-nav">Lihat Dashboard</a>
+    <h1>SKK Migas Tender </h1>
 </header>
+
+<!-- Navigasi Utama -->
+<nav class="app-nav">
+    <ul>
+        <li><a href="/" class="active">Daftar Tender</a></li> 
+        <li><a href="/dashboard">Dashboard</a></li>
+    </ul>
+</nav>
 
 <div class="main-container">
 
@@ -482,27 +588,43 @@
             <div class="tender-grid">
                 <% prakualifikasiTenders.forEach(tender => { %>
                     <div class="tender-card">
-                        <h5>
-                            <%= tender.judul %>
-                            <% if (tender.isNew) { %>
-                                <span class="new-label">New</span>
-                            <% } %>
-                        </h5>
-                        <p class="tender-meta">
-                            <span>📅 <strong>Tayang:</strong> <%= tender.tanggal %></span> 
-                            <span>⏱️ <strong>Batas:</strong> <%= tender.batasWaktu %></span>
-                            <% if (tender.isExpired) { %>
-                                <span class="expired-label">Expired</span>
-                            <% } %>
-                            <br>
-                            <span>🏢 <strong>KKKS:</strong> <%= tender.kkks %></span>
-                        </p>
-                        <div class="tender-field">
-                            <strong>Bidang Usaha:</strong>
-                            <p><%= tender.bidangUsaha %></p>
+                        <div class="card-header">
+                            <h5 class="card-title"><%= tender.judul %></h5>
+                            <div class="card-status">
+                                <% if (tender.isNew) { %>
+                                    <span class="badge status-new">New</span>
+                                <% } %>
+                                <% if (tender.isExpired) { %>
+                                    <span class="badge status-closed">Closed</span>
+                                <% /* Tambahkan status Open jika tidak New dan tidak Expired */ %>
+                                <% } else if (!tender.isNew && !tender.isExpired) { %> 
+                                    <span class="badge status-open">Open</span>
+                                <% } %>
+                            </div>
                         </div>
-                        <div class="tender-actions">
-                            <button class="btn btn-detail" data-bs-toggle="modal" data-bs-target="#tenderModal"
+                        <div class="card-body">
+                            <div class="info-row">
+                                <i class="fas fa-building info-icon"></i>
+                                <span class="info-label">KKKS:</span>
+                                <span class="info-value"><%= tender.kkks %></span>
+                            </div>
+                            <div class="info-row">
+                                <i class="far fa-calendar-alt info-icon"></i>
+                                <span class="info-label">Tayang:</span>
+                                <span class="info-value"><%= tender.tanggal %></span>
+                            </div>
+                            <div class="info-row <%= tender.isExpired ? 'deadline-expired' : '' %>">
+                                <i class="far fa-calendar-times info-icon"></i>
+                                <span class="info-label">Batas:</span>
+                                <span class="info-value"><%= tender.batasWaktu %></span>
+                            </div>
+                            <div class="bidang-usaha">
+                                <strong>Bidang Usaha:</strong>
+                                <p><%= tender.bidangUsaha %></p>
+                            </div>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-detail"
                                 data-id="<%= tender.id %>"
                                 data-judul="<%= tender.judul %>"
                                 data-tanggal="<%= tender.tanggal %>"
@@ -519,46 +641,22 @@
                                 <i class="fas fa-info-circle"></i> Detail
                             </button>
 
-                            <!-- Logika Tombol Attachment Baru (Loop pada dbAttachments) -->
                             <% if (tender.dbAttachments && tender.dbAttachments.length > 0) { %>
                                 <% tender.dbAttachments.forEach((attachment, index) => { %>
                                     <% if (attachment.localPath) { %>
-                                        <%# Tombol Aktif untuk PDF Lokal %>
-                                        <a href="<%= attachment.localPath %>" class="btn btn-attachment" target="_blank" title="<%= attachment.attachment_name %>"> 
-                                            <i class="fas fa-paperclip"></i>
-                                            <%# Tampilkan nama attachment jika pendek, atau label generik %>
-                                            <% if (tender.dbAttachments.length === 1) { %>
-                                                Lihat PDF
-                                            <% } else { %>
-                                                Attachment <%= index + 1 %>
-                                            <% } %>
+                                        <a href="<%= attachment.localPath %>" class="btn btn-pdf" target="_blank" title="<%= attachment.attachment_name %>"> 
+                                            <i class="fas fa-paperclip"></i> PDF <%= tender.dbAttachments.length > 1 ? index + 1 : '' %>
+                                        </a>
+                                    <% } else if (attachment.attachment_url) { %>
+                                        <a href="<%= attachment.attachment_url %>" class="btn btn-link-asli" target="_blank" title="Link Asli: <%= attachment.attachment_name %>">
+                                            <i class="fas fa-external-link-alt"></i> Link <%= tender.dbAttachments.length > 1 ? index + 1 : '' %>
                                         </a>
                                     <% } else { %>
-                                         <%# Tombol Nonaktif atau Link Asli %>
-                                         <% if (attachment.attachment_url) { %>
-                                             <a href="<%= attachment.attachment_url %>" class="btn btn-attachment btn-link-asli" target="_blank" title="Link Asli (PDF Lokal tidak ditemukan): <%= attachment.attachment_name %>">
-                                                <i class="fas fa-external-link-alt"></i>
-                                                <% if (tender.dbAttachments.length === 1) { %>
-                                                    Link Asli
-                                                <% } else { %>
-                                                    Link Asli <%= index + 1 %>
-                                                <% } %>
-                                             </a>
-                                         <% } else { %>
-                                             <button class="btn btn-attachment disabled" title="PDF tidak ditemukan: <%= attachment.attachment_name %>">
-                                                <i class="fas fa-times-circle"></i>
-                                                <% if (tender.dbAttachments.length === 1) { %>
-                                                    PDF Hilang
-                                                <% } else { %>
-                                                    Attach <%= index + 1 %> Hilang
-                                                <% } %>
-                                             </button>
-                                         <% } %>
+                                        <button class="btn disabled" title="PDF tidak ditemukan: <%= attachment.attachment_name %>">
+                                            <i class="fas fa-times-circle"></i> PDF Hilang <%= tender.dbAttachments.length > 1 ? index + 1 : '' %>
+                                        </button>
                                     <% } %>
                                 <% }); %>
-                            <% } else { %>
-                                <%# Opsional: Tampilkan pesan jika tidak ada attachment sama sekali %>
-                                <!-- <span class="no-attachment">Tidak ada attachment</span> -->
                             <% } %>
                         </div>
                     </div>
@@ -608,82 +706,74 @@
             <div class="tender-grid">
                 <% pelelanganTenders.forEach(tender => { %>
                     <div class="tender-card">
-                        <h5>
-                            <%= tender.judul %>
-                            <% if (tender.isNew) { %>
-                                <span class="new-label">New</span>
-                            <% } %>
-                        </h5>
-                        <p class="tender-meta">
-                            <span>📅 <strong>Tayang:</strong> <%= tender.tanggal %></span> 
-                            <span>⏱️ <strong>Batas:</strong> <%= tender.batasWaktu %></span>
-                            <% if (tender.isExpired) { %>
-                                <span class="expired-label">Expired</span>
-                            <% } %>
-                            <br>
-                            <span>🏢 <strong>KKKS:</strong> <%= tender.kkks %></span>
-                        </p>
-                        <div class="tender-field">
-                            <strong>Bidang Usaha:</strong>
-                            <p><%= tender.bidangUsaha %></p>
+                        <div class="card-header">
+                            <h5 class="card-title"><%= tender.judul %></h5>
+                            <div class="card-status">
+                                <% if (tender.isNew) { %>
+                                    <span class="badge status-new">New</span>
+                                <% } %>
+                                <% if (tender.isExpired) { %>
+                                    <span class="badge status-closed">Closed</span>
+                                <% /* Tambahkan status Open jika tidak New dan tidak Expired */ %>
+                                <% } else if (!tender.isNew && !tender.isExpired) { %> 
+                                    <span class="badge status-open">Open</span>
+                                <% } %>
+                            </div>
                         </div>
-                        <div class="tender-actions">
+                        <div class="card-body">
+                            <div class="info-row">
+                                <i class="fas fa-building info-icon"></i>
+                                <span class="info-label">KKKS:</span>
+                                <span class="info-value"><%= tender.kkks %></span>
+                            </div>
+                            <div class="info-row">
+                                <i class="far fa-calendar-alt info-icon"></i>
+                                <span class="info-label">Tayang:</span>
+                                <span class="info-value"><%= tender.tanggal %></span>
+                            </div>
+                            <div class="info-row <%= tender.isExpired ? 'deadline-expired' : '' %>">
+                                <i class="far fa-calendar-times info-icon"></i>
+                                <span class="info-label">Batas:</span>
+                                <span class="info-value"><%= tender.batasWaktu %></span>
+                            </div>
+                            <div class="bidang-usaha">
+                                <strong>Bidang Usaha:</strong>
+                                <p><%= tender.bidangUsaha %></p>
+                            </div>
+                        </div>
+                        <div class="card-actions">
                             <button class="btn btn-detail"
                                     data-id="<%= tender.id %>"
                                     data-judul="<%= tender.judul %>"
                                     data-tanggal="<%= tender.tanggal %>"
-                                    data-batas="<%= tender.batasWaktu %>"
+                                    data-batas-waktu="<%= tender.batasWaktu %>"
                                     data-kkks="<%= tender.kkks %>"
-                                    data-deskripsi="<%= tender.deskripsi || '' %>"
                                     data-bidang-usaha="<%= tender.bidangUsaha %>"
-                                    data-tipe="Pelelangan Umum"
+                                    data-tipe-tender="Pelelangan Umum"
+                                    data-deskripsi="<%= tender.deskripsi || '' %>"
                                     data-attachment-url="<%= tender.attachmentUrl %>"
                                     data-attachment-name="<%= tender.attachmentName %>"
                                     data-golongan-usaha="<%= tender.golonganUsaha || '-' %>"
                                     data-jenis-pengadaan="<%= tender.jenisPengadaan || '-' %>">
-                                ℹ️ Detail
+                                <i class="fas fa-info-circle"></i> Detail
                             </button>
-                           
-                            <!-- Logika Tombol Attachment Baru (Loop pada dbAttachments) -->
+
                             <% if (tender.dbAttachments && tender.dbAttachments.length > 0) { %>
                                 <% tender.dbAttachments.forEach((attachment, index) => { %>
                                     <% if (attachment.localPath) { %>
-                                        <%# Tombol Aktif untuk PDF Lokal %>
-                                        <a href="<%= attachment.localPath %>" class="btn btn-attachment" target="_blank" title="<%= attachment.attachment_name %>"> 
-                                            <i class="fas fa-paperclip"></i>
-                                            <%# Tampilkan nama attachment jika pendek, atau label generik %>
-                                            <% if (tender.dbAttachments.length === 1) { %>
-                                                Lihat PDF
-                                            <% } else { %>
-                                                Attachment <%= index + 1 %>
-                                            <% } %>
+                                        <a href="<%= attachment.localPath %>" class="btn btn-pdf" target="_blank" title="<%= attachment.attachment_name %>"> 
+                                            <i class="fas fa-paperclip"></i> PDF <%= tender.dbAttachments.length > 1 ? index + 1 : '' %>
+                                        </a>
+                                    <% } else if (attachment.attachment_url) { %>
+                                        <a href="<%= attachment.attachment_url %>" class="btn btn-link-asli" target="_blank" title="Link Asli: <%= attachment.attachment_name %>">
+                                            <i class="fas fa-external-link-alt"></i> Link <%= tender.dbAttachments.length > 1 ? index + 1 : '' %>
                                         </a>
                                     <% } else { %>
-                                         <%# Tombol Nonaktif atau Link Asli %>
-                                         <% if (attachment.attachment_url) { %>
-                                             <a href="<%= attachment.attachment_url %>" class="btn btn-attachment btn-link-asli" target="_blank" title="Link Asli (PDF Lokal tidak ditemukan): <%= attachment.attachment_name %>">
-                                                <i class="fas fa-external-link-alt"></i>
-                                                <% if (tender.dbAttachments.length === 1) { %>
-                                                    Link Asli
-                                                <% } else { %>
-                                                    Link Asli <%= index + 1 %>
-                                                <% } %>
-                                             </a>
-                                         <% } else { %>
-                                             <button class="btn btn-attachment disabled" title="PDF tidak ditemukan: <%= attachment.attachment_name %>">
-                                                <i class="fas fa-times-circle"></i>
-                                                <% if (tender.dbAttachments.length === 1) { %>
-                                                    PDF Hilang
-                                                <% } else { %>
-                                                    Attach <%= index + 1 %> Hilang
-                                                <% } %>
-                                             </button>
-                                         <% } %>
+                                        <button class="btn disabled" title="PDF tidak ditemukan: <%= attachment.attachment_name %>">
+                                            <i class="fas fa-times-circle"></i> PDF Hilang <%= tender.dbAttachments.length > 1 ? index + 1 : '' %>
+                                        </button>
                                     <% } %>
                                 <% }); %>
-                            <% } else { %>
-                                <%# Opsional: Tampilkan pesan jika tidak ada attachment sama sekali %>
-                                <!-- <span class="no-attachment">Tidak ada attachment</span> -->
                             <% } %>
                         </div>
                     </div>
@@ -810,30 +900,30 @@
 }
 
 .modal-content h3 {
-    color: #138496; /* Teal gelap */
+    color: #e71e25; /* Merah GDA */
     margin-top: 0;
-    margin-bottom: 10px;
+    margin-bottom: 15px; /* Tambah jarak bawah */
     font-size: 1.6em;
-    border-bottom: 1px solid #e1e4e8;
-    padding-bottom: 10px;
+    border-bottom: 1px solid #eeeeee; /* Border abu terang */
+    padding-bottom: 15px;
 }
 
 .modal-meta {
     font-size: 0.9em;
-    color: #6c757d;
-    margin-bottom: 20px;
+    color: #6c757d; /* Abu-abu standar */
+    margin-bottom: 25px; /* Tambah jarak bawah */
 }
 .modal-meta strong {
-    color: #343a40;
+    color: #333333; /* Hitam/Gelap */
 }
 .modal-meta span { 
     margin-right: 10px; 
 }
 #modalType {
     font-weight: bold;
-    color: #17a2b8;
-    background-color: #e2f7fa;
-    padding: 2px 6px;
+    color: #e71e25; /* Merah GDA */
+    background-color: #fff0f0; /* Merah muda sangat terang */
+    padding: 3px 8px; /* Sesuaikan padding */
     border-radius: 4px;
     display: inline-block;
     margin-right: 10px;
@@ -845,12 +935,14 @@
 .modal-body strong {
     display: block;
     margin-bottom: 8px;
-    color: #6c757d;
+    color: #495057; /* Abu lebih gelap untuk label */
     font-weight: 600;
 }
 .modal-body p {
     margin-top: 0;
+    margin-bottom: 15px; /* Jarak antar paragraf info */
     line-height: 1.7;
+    color: #333333; /* Teks utama hitam/gelap */
 }
 
 .modal-attachments {
@@ -859,8 +951,11 @@
 .modal-attachments a {
     display: block;
     margin-bottom: 5px;
-    color: #17a2b8;
+    color: #e71e25; /* Merah GDA */
     text-decoration: none;
+}
+.modal-attachments a i {
+    margin-right: 5px; /* Jarak ikon dan teks */
 }
 .modal-attachments a:hover {
     text-decoration: underline;
@@ -873,23 +968,23 @@
 .modal-footer {
     text-align: right;
     padding-top: 20px;
-    border-top: 1px solid #e1e4e8;
+    border-top: 1px solid #eeeeee; /* Border abu terang */
 }
 
-/* Gaya tombol sekunder untuk modal */
+/* Gaya tombol sekunder untuk modal (Tombol Kembali - samakan dengan Reset) */
 .btn-secondary {
     padding: 8px 18px;
     border-radius: 6px;
     font-size: 0.9em;
     font-weight: 600;
-    background-color: #6c757d;
-    color: #ffffff;
+    background-color: #6c757d; /* Latar Abu */
+    color: #ffffff; /* Teks Putih */
     border: none;
     cursor: pointer;
     transition: background-color 0.2s ease;
 }
 .btn-secondary:hover {
-    background-color: #5a6268;
+    background-color: #5a6268; /* Abu lebih gelap hover */
 }
 
 </style>
@@ -923,11 +1018,22 @@
 
         // Tampilkan attachments
         modalAttachments.innerHTML = '<strong>Attachments:</strong>'; // Reset konten attachment
-        if (data.attachmentUrl && data.attachmentName) {
+        // Cek dari data tender yang diambil dari tombol
+        const localPdfPath = data.localPdf; 
+        const attachmentUrl = data.attachmentUrl;
+        const attachmentName = data.attachmentName || 'Download';
+
+        if (localPdfPath) {
             const link = document.createElement('a');
-            link.href = data.attachmentUrl;
-            link.textContent = `📎 ${data.attachmentName}`;
+            link.href = localPdfPath;
             link.target = '_blank';
+            link.innerHTML = `<i class="fas fa-paperclip"></i> ${attachmentName}`;
+            modalAttachments.appendChild(link);
+        } else if (attachmentUrl && attachmentUrl !== '#') {
+            const link = document.createElement('a');
+            link.href = attachmentUrl;
+            link.target = '_blank';
+            link.innerHTML = `<i class="fas fa-external-link-alt"></i> ${attachmentName} (Link Asli)`;
             modalAttachments.appendChild(link);
         } else {
             const noAttach = document.createElement('span');
@@ -951,11 +1057,11 @@
                 id: button.dataset.id,
                 judul: button.dataset.judul,
                 tanggal: button.dataset.tanggal,
-                batas: button.dataset.batas,
+                batas: button.dataset.batasWaktu,
                 kkks: button.dataset.kkks,
                 deskripsi: button.dataset.deskripsi,
                 bidangUsaha: button.dataset.bidangUsaha,
-                tipe: button.dataset.tipe,
+                tipe: button.dataset.tipeTender,
                 attachmentUrl: button.dataset.attachmentUrl,
                 attachmentName: button.dataset.attachmentName,
                 golonganUsaha: button.dataset.golonganUsaha,
