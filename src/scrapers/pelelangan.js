@@ -72,32 +72,39 @@ function extractPelelanganFromHtml($) {
       const deskripsi = cardBody.find('small.card-subtitle').nextAll('p.card-text').first().text().trim();
       // -----------------------
 
-      // --- Ambil Golongan, Jenis, dan Bidang Usaha ---
+      // --- Ambil Golongan, Jenis, dan Bidang Usaha dari p.tipe ---
       let golonganUsaha = '';
       let jenisPengadaan = '';
       let bidangUsahaFinal = '';
-      const tipeDiv = cardBody.find('div.tipe, p.tipe');
-      let combinedText = '';
-      tipeDiv.find('span.field').each((idx, el) => {
-          combinedText += $(el).text().trim() + ' | ';
-      });
-      combinedText = combinedText.replace(/\|\s*$/, '').trim();
-
-      const parts = combinedText.split('|').map(part => part.trim());
-      parts.forEach(part => {
-          if (part.toLowerCase().startsWith('golongan usaha')) {
-              golonganUsaha = part.replace(/Golongan Usaha\s*:\s*/i, '').trim();
-          } else if (part.toLowerCase().startsWith('jenis pengadaan')) {
-              jenisPengadaan = part.replace(/Jenis Pengadaan\s*:\s*/i, '').trim();
-          } else if (part.toLowerCase().startsWith('bidang usaha')) {
-              bidangUsahaFinal += (bidangUsahaFinal ? '; ' : '') + part.replace(/Bidang Usaha\s*:\s*/i, '').trim();
-          } else if (!golonganUsaha && !jenisPengadaan && !bidangUsahaFinal && part) {
-              bidangUsahaFinal = part;
-          } else if (part) {
-               bidangUsahaFinal += (bidangUsahaFinal ? '; ' : '') + part;
+      const tipeElement = cardBody.find('p.tipe').first(); // Target p.tipe
+      
+      if (tipeElement.length) {
+        tipeElement.find('span').each((idx, spanEl) => {
+          const span = $(spanEl);
+          const boldText = span.find('b').text().trim(); 
+          if (boldText.toLowerCase().startsWith('golongan usaha')) {
+            golonganUsaha = span.text().replace(/Golongan Usaha\s*:\s*/i, '').trim();
+          } else if (boldText.toLowerCase().startsWith('jenis pengadaan')) {
+            jenisPengadaan = span.text().replace(/Jenis Pengadaan\s*:\s*/i, '').trim();
+          } else if (boldText.toLowerCase().startsWith('bidang usaha')) {
+            const bidangText = span.text().replace(/Bidang Usaha\s*:\s*/i, '').trim();
+            bidangUsahaFinal += (bidangUsahaFinal ? '; ' : '') + bidangText;
           }
-      });
-      // ---------------------------------------------
+        });
+        
+        // Fallback jika bidangUsahaFinal masih kosong
+        if (!bidangUsahaFinal) {
+            tipeElement.find('span.field').each((idx, spanEl) => {
+                 const spanText = $(spanEl).text().trim();
+                 if (!spanText.toLowerCase().startsWith('golongan usaha') && !spanText.toLowerCase().startsWith('jenis pengadaan')) {
+                      bidangUsahaFinal += (bidangUsahaFinal ? '; ' : '') + spanText;
+                 }
+            });
+        }
+      } else {
+          // console.warn(`[Pelelangan Extractor] Elemen p.tipe tidak ditemukan untuk: ${title}`);
+      }
+      // --------------------------------------------------------
 
       // Kumpulkan SEMUA attachment
       const attachments = [];

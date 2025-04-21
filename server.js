@@ -124,16 +124,16 @@ app.get('/', (req, res) => {
   const status = req.query.status || '';
   
   // Basis SQL query
-  let sql = 'SELECT id, judul, tanggal, batasWaktu, kkks, bidangUsaha, url, attachmentUrl, attachmentName, tipe_tender, createdAt FROM procurement_list';
+  let sql = 'SELECT id, judul, tanggal, batasWaktu, kkks, bidangUsaha, url, attachmentUrl, attachmentName, tipe_tender, createdAt, deskripsi, golonganUsaha, jenisPengadaan FROM procurement_list';
   const sqlParams = [];
   
   // Menambahkan kondisi WHERE berdasarkan parameter pencarian
   const conditions = [];
   
   if (keyword) {
-    conditions.push('(judul LIKE ? OR bidangUsaha LIKE ? OR kkks LIKE ?)');
+    conditions.push('(judul LIKE ? OR bidangUsaha LIKE ? OR kkks LIKE ? OR deskripsi LIKE ? OR golonganUsaha LIKE ? OR jenisPengadaan LIKE ?)');
     const searchPattern = `%${keyword}%`;
-    sqlParams.push(searchPattern, searchPattern, searchPattern);
+    sqlParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
   }
   
   if (type) {

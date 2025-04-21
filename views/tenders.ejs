@@ -508,11 +508,14 @@
                                 data-tanggal="<%= tender.tanggal %>"
                                 data-batas-waktu="<%= tender.batasWaktu %>"
                                 data-kkks="<%= tender.kkks %>"
+                                data-deskripsi="<%= tender.deskripsi || '' %>"
                                 data-bidang-usaha="<%= tender.bidangUsaha %>"
                                 data-attachment-name="<%= tender.attachmentName || '-' %>"
                                 data-tipe-tender="<%= tender.tipe_tender %>"
                                 data-attachment-url="<%= tender.attachmentUrl || '#' %>"
-                                data-local-pdf="<%= tender.localPdfPath || '' %>">
+                                data-local-pdf="<%= tender.localPdfPath || '' %>"
+                                data-golongan-usaha="<%= tender.golonganUsaha || '-' %>"
+                                data-jenis-pengadaan="<%= tender.jenisPengadaan || '-' %>">
                                 <i class="fas fa-info-circle"></i> Detail
                             </button>
 
@@ -631,10 +634,13 @@
                                     data-tanggal="<%= tender.tanggal %>"
                                     data-batas="<%= tender.batasWaktu %>"
                                     data-kkks="<%= tender.kkks %>"
-                                    data-bidang="<%= tender.bidangUsaha %>"
+                                    data-deskripsi="<%= tender.deskripsi || '' %>"
+                                    data-bidang-usaha="<%= tender.bidangUsaha %>"
                                     data-tipe="Pelelangan Umum"
                                     data-attachment-url="<%= tender.attachmentUrl %>"
-                                    data-attachment-name="<%= tender.attachmentName %>">
+                                    data-attachment-name="<%= tender.attachmentName %>"
+                                    data-golongan-usaha="<%= tender.golonganUsaha || '-' %>"
+                                    data-jenis-pengadaan="<%= tender.jenisPengadaan || '-' %>">
                                 ℹ️ Detail
                             </button>
                            
@@ -733,8 +739,14 @@
             <span>🏢 <strong>KKKS:</strong> <span id="modalKkks"></span></span>
         </p>
         <div class="modal-body">
-            <strong>Bidang Usaha / Deskripsi Singkat:</strong>
-            <p id="modalBidang"></p>
+            <strong>Deskripsi Singkat:</strong>
+            <p id="modalDeskripsi">-</p>
+            
+            <strong style="margin-top: 15px;">Bidang Usaha:</strong>
+            <p id="modalBidang">-</p>
+            
+            <p style="margin-top: 15px;"><strong>Golongan Usaha:</strong> <span id="modalGolonganUsaha">-</span></p>
+            <p><strong>Jenis Pengadaan:</strong> <span id="modalJenisPengadaan">-</span></p>
             
             <div id="modalAttachments" class="modal-attachments">
                 <strong>Attachments:</strong>
@@ -890,8 +902,11 @@
     const modalTanggal = document.getElementById('modalTanggal');
     const modalBatas = document.getElementById('modalBatas');
     const modalKkks = document.getElementById('modalKkks');
+    const modalDeskripsi = document.getElementById('modalDeskripsi');
     const modalBidang = document.getElementById('modalBidang');
     const modalAttachments = document.getElementById('modalAttachments');
+    const modalGolonganUsaha = document.getElementById('modalGolonganUsaha');
+    const modalJenisPengadaan = document.getElementById('modalJenisPengadaan');
 
     function openModal(data) {
         modalTitle.textContent = data.judul || 'Detail Tender';
@@ -899,8 +914,13 @@
         modalTanggal.textContent = data.tanggal || 'N/A';
         modalBatas.textContent = data.batas || 'N/A';
         modalKkks.textContent = data.kkks || 'N/A';
-        modalBidang.textContent = data.bidang || 'Tidak ada deskripsi.'; // Tampilkan bidang usaha sbg deskripsi
+        modalDeskripsi.textContent = data.deskripsi || 'Tidak ada deskripsi.';
+        modalBidang.textContent = data.bidangUsaha || '-'; 
         
+        // Isi data baru
+        modalGolonganUsaha.textContent = data.golonganUsaha || '-'; 
+        modalJenisPengadaan.textContent = data.jenisPengadaan || '-';
+
         // Tampilkan attachments
         modalAttachments.innerHTML = '<strong>Attachments:</strong>'; // Reset konten attachment
         if (data.attachmentUrl && data.attachmentName) {
@@ -933,10 +953,13 @@
                 tanggal: button.dataset.tanggal,
                 batas: button.dataset.batas,
                 kkks: button.dataset.kkks,
-                bidang: button.dataset.bidang,
+                deskripsi: button.dataset.deskripsi,
+                bidangUsaha: button.dataset.bidangUsaha,
                 tipe: button.dataset.tipe,
                 attachmentUrl: button.dataset.attachmentUrl,
-                attachmentName: button.dataset.attachmentName
+                attachmentName: button.dataset.attachmentName,
+                golonganUsaha: button.dataset.golonganUsaha,
+                jenisPengadaan: button.dataset.jenisPengadaan
             };
             openModal(tenderData);
         }

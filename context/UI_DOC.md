@@ -52,7 +52,7 @@ Dokumen ini menjelaskan logika antarmuka pengguna (UI) dari aplikasi web Express
         *   **"New"**: Ditampilkan jika tender ditambahkan ke database dalam 24 jam terakhir. Logika pengecekan (`checkIsNew`) ada di `server.js`, menambahkan flag `isNew` ke data tender. Ditampilkan jika `tender.isNew === true`.
         *   **"Expired"**: Ditampilkan jika `batasWaktu` tender sudah lewat (lebih kecil atau sama dengan tanggal hari ini). Logika pengecekan (`checkIsExpired`) ada di `server.js`, menambahkan flag `isExpired` ke data tender. Ditampilkan jika `tender.isExpired === true`.
     *   **Tombol Aksi (di Halaman Utama)**:
-        *   "Detail": Membuka Modal Detail.
+        *   "Detail": Membuka Modal Detail. Tombol ini membawa atribut `data-deskripsi` dan `data-bidang-usaha` (serta data lainnya) untuk digunakan oleh modal.
         *   Link PDF: Menampilkan nama file attachment (dari tabel `attachments`) dan mengarah ke URL `/local-pdfs/:filename` jika file PDF yang sesuai ditemukan di direktori lokal (`src/download pdf/`). Logika pengambilan data attachment dan pengecekan file lokal (`addLocalPdfPath`) dilakukan di `server.js`. Tombol menjadi non-aktif atau tidak ditampilkan jika PDF tidak ditemukan lokal.
 
 ### c. Pagination (di Halaman Utama)
@@ -73,8 +73,7 @@ Dokumen ini menjelaskan logika antarmuka pengguna (UI) dari aplikasi web Express
     *   Modal disembunyikan secara default (CSS `display: none`).
     *   Tombol "Detail" pada kartu tender memiliki atribut `data-*` yang menyimpan informasi detail tender.
     *   Script JavaScript menggunakan *event delegation* untuk menangkap klik pada tombol "Detail".
-    *   Saat diklik, script membaca `data-*` dari tombol yang diklik, mengisi konten modal (judul, tanggal, batas, kkks, bidang usaha, deskripsi, golongan usaha, jenis pengadaan, dll.), dan menampilkan modal (mengubah `display` menjadi `flex`).
-    *   Daftar attachment (nama file dari tabel `attachments`) kemungkinan ditampilkan di dalam modal, beserta link unduh jika file PDF tersedia secara lokal (menggunakan path yang dihasilkan oleh `addLocalPdfPath`).
+    *   Saat diklik, script membaca `data-*` dari tombol yang diklik (termasuk `data-deskripsi` dan `data-bidang-usaha`), mengisi konten modal (judul, tanggal, batas, kkks, **deskripsi**, **bidang usaha**, golongan usaha, jenis pengadaan, dll.), dan menampilkan modal (mengubah `display` menjadi `flex`). Deskripsi singkat ditampilkan di elemen `<p id="modalDeskripsi">` dan Bidang Usaha ditampilkan di elemen `<p id="modalBidang">`.
     *   Tombol close (`&times;`) dan klik di luar area konten modal akan menyembunyikan modal kembali.
 
 ### e. Kalender Deadline (di Dashboard)

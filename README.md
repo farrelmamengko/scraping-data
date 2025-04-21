@@ -146,7 +146,7 @@ Menjalankan scraper akan mengambil data terbaru dari CIVD dan menyimpannya ke `d
 
 *   **Halaman Utama (`/`)**: Menampilkan daftar tender Prakualifikasi dan Pelelangan Umum dalam section terpisah. Setiap section menggunakan layout kartu dan memiliki kontrol pagination di bawahnya jika data melebihi 6 item. Mengklik tombol "Detail" pada kartu akan membuka modal popup.
 *   **Halaman Dashboard (`/dashboard`)**: Menampilkan ringkasan jumlah tender, daftar 5 tender terbaru, dan kalender interaktif yang menandai tanggal deadline (`batasWaktu`) tender.
-*   **Modal Detail**: Popup yang muncul saat tombol "Detail" diklik, menampilkan informasi ringkas tender (judul, tanggal tayang (scraping), batas waktu, KKKS, bidang usaha, attachment).
+*   **Modal Detail**: Popup yang muncul saat tombol "Detail" diklik, menampilkan informasi ringkas tender termasuk **Deskripsi Singkat**, Bidang Usaha, Golongan Usaha, Jenis Pengadaan, serta detail lainnya (judul, tanggal tayang, batas waktu, KKKS, dll).
 *   **Kalender Deadline**: Kalender di dashboard menggunakan `batasWaktu` tender untuk menandai tanggal penting.
 
 ## 7. Catatan & Potensi Pengembangan

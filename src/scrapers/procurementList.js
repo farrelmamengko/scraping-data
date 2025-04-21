@@ -43,36 +43,43 @@ function extractProcurementFromHtml($) {
       const deskripsi = cardBody.find('h5.card-title').nextAll('p.card-text').first().text().trim();
       // -----------------------
 
-      // --- Ambil Golongan, Jenis, dan Bidang Usaha ---
+      // --- Ambil Golongan, Jenis, dan Bidang Usaha dari p.tipe ---
       let golonganUsaha = '';
       let jenisPengadaan = '';
       let bidangUsahaFinal = '';
-      const tipeDiv = cardBody.find('div.tipe, p.tipe'); // Cari div atau p dengan kelas tipe
-      let combinedText = '';
-      tipeDiv.find('span.field').each((idx, el) => {
-          combinedText += $(el).text().trim() + ' | '; // Gabungkan teks dari semua span field
-      });
-      combinedText = combinedText.replace(/\|\s*$/, '').trim(); // Hapus pemisah terakhir
-
-      // Parsing teks gabungan
-      const parts = combinedText.split('|').map(part => part.trim());
-      parts.forEach(part => {
-          if (part.toLowerCase().startsWith('golongan usaha')) {
-              golonganUsaha = part.replace(/Golongan Usaha\s*:\s*/i, '').trim();
-          } else if (part.toLowerCase().startsWith('jenis pengadaan')) {
-              jenisPengadaan = part.replace(/Jenis Pengadaan\s*:\s*/i, '').trim();
-          } else if (part.toLowerCase().startsWith('bidang usaha')) {
-              // Kumpulkan semua bagian bidang usaha jika terpisah
-              bidangUsahaFinal += (bidangUsahaFinal ? '; ' : '') + part.replace(/Bidang Usaha\s*:\s*/i, '').trim();
-          } else if (!golonganUsaha && !jenisPengadaan && !bidangUsahaFinal && part) {
-              // Fallback jika formatnya berbeda, anggap bagian pertama non-label adalah bidang usaha
-              bidangUsahaFinal = part;
-          } else if (part) {
-              // Tambahkan ke bidang usaha jika tidak cocok dengan yang lain dan tidak kosong
-               bidangUsahaFinal += (bidangUsahaFinal ? '; ' : '') + part;
+      const tipeElement = cardBody.find('p.tipe').first(); // Target p.tipe
+      
+      if (tipeElement.length) {
+        tipeElement.find('span').each((idx, spanEl) => {
+          const span = $(spanEl);
+          // Cari tag <b> di dalam span untuk label
+          const boldText = span.find('b').text().trim(); 
+          if (boldText.toLowerCase().startsWith('golongan usaha')) {
+            // Ambil teks setelah tag <b> dan ": "
+            golonganUsaha = span.text().replace(/Golongan Usaha\s*:\s*/i, '').trim();
+          } else if (boldText.toLowerCase().startsWith('jenis pengadaan')) {
+            // Ambil teks setelah tag <b> dan ": "
+            jenisPengadaan = span.text().replace(/Jenis Pengadaan\s*:\s*/i, '').trim();
+          } else if (boldText.toLowerCase().startsWith('bidang usaha')) {
+            // Kumpulkan semua bagian bidang usaha
+            const bidangText = span.text().replace(/Bidang Usaha\s*:\s*/i, '').trim();
+            bidangUsahaFinal += (bidangUsahaFinal ? '; ' : '') + bidangText;
           }
-      });
-      // ---------------------------------------------
+        });
+        
+        // Fallback jika bidangUsahaFinal masih kosong (coba span.field)
+        if (!bidangUsahaFinal) {
+            tipeElement.find('span.field').each((idx, spanEl) => {
+                 const spanText = $(spanEl).text().trim();
+                 if (!spanText.toLowerCase().startsWith('golongan usaha') && !spanText.toLowerCase().startsWith('jenis pengadaan')) {
+                      bidangUsahaFinal += (bidangUsahaFinal ? '; ' : '') + spanText;
+                 }
+            });
+        }
+      } else {
+          // console.warn(`[Procurement Extractor] Elemen p.tipe tidak ditemukan untuk: ${title}`); // Optional: log jika elemen tidak ada
+      }
+      // --------------------------------------------------------
       
       // Kumpulkan SEMUA attachment
       const attachments = [];
