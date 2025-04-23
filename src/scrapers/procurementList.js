@@ -10,7 +10,8 @@ const { downloadPdfsWithPlaywright } = require('./downloadPDFsPlaywright');
 const BASE_URL = 'https://civd.skkmigas.go.id';
 
 /**
- * Ekstrak data procurement dari HTML menggunakan Cheerio
+ * Ekstrak data procurement dari HTML menggunakan Cheerio (https://cheerio.js.org/)
+ * 
  */
 function extractProcurementFromHtml($) {
   const procurementData = [];
