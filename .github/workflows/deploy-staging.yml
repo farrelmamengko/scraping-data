@@ -73,7 +73,7 @@ jobs:
           host: ${{ secrets.NAS_HOST }}
           port: ${{ secrets.NAS_PORT }}
           username: ${{ secrets.NAS_USERNAME }}
-          password: ${{ secrets.NAS_PASSWORD }}
+          key: ${{ secrets.NAS_SSH_PRIVATE_KEY }}
           script: |
             PROJECT_PATH="${{ secrets.NAS_PROJECT_PATH }}"
             REPO_URL="${{ env.REPO_URL }}"
