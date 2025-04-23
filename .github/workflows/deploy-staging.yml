@@ -67,23 +67,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Install SSH client dan sshpass
       - name: Install SSH tools
         run: |
           sudo apt-get update && sudo apt-get install -y openssh-client sshpass
 
-      # 2. Buat Skrip Deployment Lokal di Runner
       - name: Create deployment script
         run: |
           cat > deploy.sh << 'EOL'
           #!/bin/bash
           # Script ini akan dijalankan di NAS
 
-          # Variabel dari Secrets GitHub (di-pass sebagai env var)
-          PROJECT_PATH="${NAS_PROJECT_PATH}"
-          DOCKERHUB_USER="${DOCKERHUB_USERNAME}"
-          DOCKERHUB_TOKEN_SECRET="${DOCKERHUB_TOKEN}"
+          # Baca argumen posisi dari perintah ssh
+          PROJECT_PATH="$1"
+          DOCKERHUB_USER="$2"
+          DOCKERHUB_TOKEN_SECRET="$3"
+          IMAGE_NAME="$4"
+          # Tambahkan tag :latest
           IMAGE_TO_PULL="${IMAGE_NAME}:latest"
+
+          # Validasi argumen (opsional tapi bagus)
+          if [ -z "$PROJECT_PATH" ] || [ -z "$DOCKERHUB_USER" ] || [ -z "$DOCKERHUB_TOKEN_SECRET" ] || [ -z "$IMAGE_NAME" ]; then
+            echo "ERROR: Missing required arguments for deployment script."
+            exit 1
+          fi
 
           echo "Starting deployment to $PROJECT_PATH"
           echo "Ensuring target directory exists..."
@@ -93,50 +99,32 @@ jobs:
           echo "Ensuring data subdirectory and database file..."
           mkdir -p data
           touch data/database.db
-          # Jika perlu izin spesifik, uncomment dan sesuaikan:
           # chmod 666 data/database.db
 
-          # Set agar script berhenti jika ada error
           set -e
 
-          # Mencari path Docker & Docker Compose (seperti di workflow sukses)
+          # Cari path Docker & Docker Compose
           docker_cmd="docker"
           compose_cmd="docker compose"
           if ! command -v docker &> /dev/null; then
             echo "Docker command not found in PATH, trying known locations..."
             for cmd_path in /usr/local/bin/docker /volume1/@appstore/Docker/usr/bin/docker /usr/bin/docker; do
-              if [ -x "$cmd_path" ]; then
-                docker_cmd="$cmd_path"
-                echo "Found Docker at $docker_cmd"
-                break
-              fi
+              if [ -x "$cmd_path" ]; then docker_cmd="$cmd_path"; echo "Found Docker at $docker_cmd"; break; fi
             done
           fi
-          if [ "$docker_cmd" == "docker" ] && ! command -v docker &> /dev/null; then
-             echo "ERROR: Docker executable not found!"
-             exit 1
-          fi
-          # Mencari docker compose plugin atau standalone
+          if [ "$docker_cmd" == "docker" ] && ! command -v docker &> /dev/null; then echo "ERROR: Docker executable not found!"; exit 1; fi
           if ! $docker_cmd compose version &> /dev/null; then
             echo "Docker compose plugin not found, looking for standalone..."
             for cmd_path in /usr/local/bin/docker-compose /volume1/@appstore/Docker/usr/bin/docker-compose /usr/bin/docker-compose; do
-               if [ -x "$cmd_path" ]; then
-                 compose_cmd="$cmd_path"
-                 echo "Found standalone Docker Compose at $compose_cmd"
-                 break
-               fi
+              if [ -x "$cmd_path" ]; then compose_cmd="$cmd_path"; echo "Found standalone Docker Compose at $compose_cmd"; break; fi
             done
           fi
-          if [ "$compose_cmd" == "docker compose" ] && ! $docker_cmd compose version &> /dev/null; then
-             echo "WARNING: Docker Compose (plugin or standalone) not found. Deployment might fail if compose file needs it."
-             # Kita tetap lanjut karena mungkin hanya perlu pull
-          fi
+          if [ "$compose_cmd" == "docker compose" ] && ! $docker_cmd compose version &> /dev/null; then echo "WARNING: Docker Compose not found."; fi
 
           echo "Logging into Docker Hub on NAS..."
-          echo "${DOCKERHUB_TOKEN_SECRET}" | $docker_cmd login -u "${DOCKERHUB_USER}" --password-stdin
+          echo "$DOCKERHUB_TOKEN_SECRET" | $docker_cmd login -u "$DOCKERHUB_USER" --password-stdin
 
           # Membuat atau memperbarui docker-compose.prod.yml DI NAS
-          # Sesuaikan isi file ini jika struktur Anda berbeda
           echo "Creating/Updating docker-compose.prod.yml on NAS..."
           cat > docker-compose.prod.yml << 'EOF'
           version: '3.8'
@@ -153,7 +141,6 @@ jobs:
           volumes:
             pdf_downloads:
           EOF
-          # Ganti placeholder di file compose
           sed -i "s|\\\${IMAGE_NAME_VAR}|${IMAGE_TO_PULL}|g" docker-compose.prod.yml
 
           echo "Pulling latest image: ${IMAGE_TO_PULL}"
@@ -173,24 +160,11 @@ jobs:
           chmod +x deploy.sh
           echo "Deployment script created."
 
-      # 3. Eksekusi Skrip di NAS via SSH menggunakan sshpass
       - name: Deploy to NAS
         env:
-          # Pass secrets dan env vars ke environment sshpass
           SSHPASS: ${{ secrets.NAS_PASSWORD }}
-          NAS_PROJECT_PATH: ${{ secrets.NAS_PROJECT_PATH }}
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
         run: |
           echo "Executing deployment script on NAS: ${{ secrets.NAS_HOST }}"
-          # Menggunakan StrictHostKeyChecking=no dan UserKnownHostsFile=/dev/null agar tidak ada prompt host key
-          # Menggunakan sshpass -e untuk membaca password dari env var SSHPASS
-          cat deploy.sh | sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} "\
-            export NAS_PROJECT_PATH=\"${NAS_PROJECT_PATH}\"\
-            export DOCKERHUB_USERNAME=\"${DOCKERHUB_USERNAME}\"\
-            export DOCKERHUB_TOKEN=\"${DOCKERHUB_TOKEN}\"\
-            export IMAGE_NAME=\"${IMAGE_NAME}\"\
-            bash -s\
-          "
+          # Melewatkan secrets sebagai argumen ke bash -s
+          cat deploy.sh | sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} bash -s "${{ secrets.NAS_PROJECT_PATH }}" "${{ secrets.DOCKERHUB_USERNAME }}" "${{ secrets.DOCKERHUB_TOKEN }}" "${{ env.IMAGE_NAME }}"
           echo "Script execution finished." 
