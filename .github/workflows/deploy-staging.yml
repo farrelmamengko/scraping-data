@@ -4,7 +4,7 @@ name: Deploy to NAS Staging (Docker Hub)
 on:
   push:
     branches:
-      - main # Jalankan saat push ke branch 'main'
+      - master # Jalankan saat push ke branch 'master'
   workflow_dispatch: # Izinkan trigger manual
 
 # Variabel Lingkungan untuk workflow
