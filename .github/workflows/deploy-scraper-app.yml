@@ -1,0 +1,177 @@
+name: Deploy Scraper Tender App ke NAS
+
+on:
+  push:
+    branches:
+      - master # Jalankan saat push ke branch master
+  workflow_dispatch: # Izinkan trigger manual
+
+# Variabel Lingkungan untuk workflow
+env:
+  # Nama image di Docker Hub
+  IMAGE_NAME: farrelmamengko/scraper-tender-app
+
+jobs:
+  build-and-push:
+    name: Build dan Push Docker Image ke Docker Hub
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Login ke Docker Hub
+      - name: Login ke Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Setup QEMU (diperlukan untuk build multi-platform)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Setup Docker Buildx (untuk build yang lebih efisien)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Extract metadata (tags, labels) untuk Docker
+      - name: Extract metadata (tags, labels) untuk Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=,suffix=,format=short
+            type=raw,value=latest
+
+      # Build dan push ke Docker Hub
+      - name: Build dan push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy-to-nas:
+    name: Deploy ke NAS
+    needs: build-and-push # Jalankan setelah build selesai
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install SSH tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y openssh-client sshpass
+
+      - name: Buat skrip deployment
+        run: |
+          cat > deploy.sh << 'EOL'
+          #!/bin/bash
+          # Script ini akan dijalankan di NAS
+
+          # Variabel dari parameter
+          PROJECT_PATH="$1"
+          DOCKERHUB_USER="$2"
+          DOCKERHUB_TOKEN="$3"
+          IMAGE_NAME="$4"
+          # Tambahkan tag :latest
+          IMAGE_TO_PULL="${IMAGE_NAME}:latest"
+
+          # Validasi argumen
+          if [ -z "$PROJECT_PATH" ] || [ -z "$DOCKERHUB_USER" ] || [ -z "$DOCKERHUB_TOKEN" ] || [ -z "$IMAGE_NAME" ]; then
+            echo "ERROR: Missing required arguments for deployment script."
+            exit 1
+          fi
+
+          echo "Memulai deployment ke $PROJECT_PATH"
+          echo "Memastikan direktori target ada..."
+          mkdir -p "$PROJECT_PATH"
+          cd "$PROJECT_PATH"
+
+          echo "Memastikan data direktori ada..."
+          mkdir -p data
+
+          set -e
+
+          # Cari path Docker & Docker Compose
+          docker_cmd="docker"
+          compose_cmd="docker compose"
+          if ! command -v docker &> /dev/null; then
+            echo "Docker command not found in PATH, trying known locations..."
+            for cmd_path in /usr/local/bin/docker /volume1/@appstore/Docker/usr/bin/docker /usr/bin/docker; do
+              if [ -x "$cmd_path" ]; then docker_cmd="$cmd_path"; echo "Found Docker at $docker_cmd"; break; fi
+            done
+          fi
+          if [ "$docker_cmd" == "docker" ] && ! command -v docker &> /dev/null; then echo "ERROR: Docker executable not found!"; exit 1; fi
+          if ! $docker_cmd compose version &> /dev/null; then
+            echo "Docker compose plugin not found, looking for standalone..."
+            for cmd_path in /usr/local/bin/docker-compose /volume1/@appstore/Docker/usr/bin/docker-compose /usr/bin/docker-compose; do
+              if [ -x "$cmd_path" ]; then compose_cmd="$cmd_path"; echo "Found standalone Docker Compose at $compose_cmd"; break; fi
+            done
+          fi
+          if [ "$compose_cmd" == "docker compose" ] && ! $docker_cmd compose version &> /dev/null; then echo "WARNING: Docker Compose not found."; fi
+
+          echo "Login ke Docker Hub di NAS..."
+          echo "$DOCKERHUB_TOKEN" | $docker_cmd login -u "$DOCKERHUB_USER" --password-stdin
+
+          # Membuat atau memperbarui docker-compose.yml di NAS
+          echo "Membuat/Memperbarui docker-compose.yml di NAS..."
+          cat > docker-compose.yml << 'EOF'
+          version: '3.8'
+          services:
+            app:
+              container_name: scraper_tender_app
+              image: ${IMAGE_NAME_VAR}
+              ports:
+                - "3002:3000"
+              restart: unless-stopped
+              volumes:
+                - ./data:/app/data
+          EOF
+          sed -i "s|\\\${IMAGE_NAME_VAR}|${IMAGE_TO_PULL}|g" docker-compose.yml
+
+          echo "Mengunduh image terbaru: ${IMAGE_TO_PULL}"
+          $compose_cmd pull app
+
+          echo "Restart container menggunakan docker-compose.yml..."
+          $compose_cmd up -d --remove-orphans
+
+          echo "Membersihkan image lama..."
+          $docker_cmd image prune -f
+
+          echo "Deployment berhasil!"
+
+          EOL
+          # Akhir dari skrip deploy.sh
+
+          chmod +x deploy.sh
+          echo "Skrip deployment dibuat."
+
+      # Salin Skrip ke NAS menggunakan scp via sshpass
+      - name: Salin skrip deployment ke NAS
+        env:
+          SSHPASS: ${{ secrets.NAS_PASSWORD }}
+        run: |
+          echo "Menyalin skrip deployment ke NAS..."
+          sshpass -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P ${{ secrets.NAS_PORT }} deploy.sh ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }}:/tmp/deploy.sh
+          echo "Skrip berhasil disalin."
+
+      # Eksekusi Skrip di NAS via SSH menggunakan sshpass
+      - name: Eksekusi skrip deployment di NAS
+        env:
+          SSHPASS: ${{ secrets.NAS_PASSWORD }}
+        run: |
+          echo "Mengeksekusi skrip deployment di NAS: ${{ secrets.NAS_HOST }}"
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} "bash /tmp/deploy.sh '${{ secrets.NAS_PROJECT_PATH }}' '${{ secrets.DOCKERHUB_USERNAME }}' '${{ secrets.DOCKERHUB_TOKEN }}' '${{ env.IMAGE_NAME }}'"
+          echo "Eksekusi skrip selesai."
+
+      # Hapus Skrip dari NAS (untuk keamanan)
+      - name: Bersihkan skrip di NAS
+        if: always() # Jalankan meskipun langkah sebelumnya gagal
+        env:
+          SSHPASS: ${{ secrets.NAS_PASSWORD }}
+        run: |
+          echo "Membersihkan skrip di NAS..."
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} 'rm -f /tmp/deploy.sh'
+          echo "Pembersihan selesai." 
