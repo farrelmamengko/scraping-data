@@ -23,7 +23,7 @@ function extractProcurementFromHtml($) {
       const cardBody = card.find('.card-body');
       if (!cardBody.length) return; // Lewati jika tidak ada body
       
-      // Ekstrak judu
+      // Ekstrak judul
       const title = cardBody.find('h5.card-title').text().trim();
       
       // Ekstrak KKKS
