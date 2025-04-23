@@ -11,7 +11,7 @@ const { downloadPdfsWithPlaywright } = require('./downloadPDFsPlaywright'); // I
 // const PaginationHandler = require('../utils/paginationHandler');
 
 /**
- * Ekstrak data pelelangan dari HTML (response AJAX)
+ * Ekstrak data pelelangan dari HTML (response AJAX)    a
  * @param {cheerio.Root} $ - Objek Cheerio Root dari HTML halaman
  * @returns {Array<Object>} - Array objek data pelelangan
  */
