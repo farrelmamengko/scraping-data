@@ -11,6 +11,10 @@ on:
 env:
   # Nama image di Docker Hub
   IMAGE_NAME: farrelmamengko/scraping-data
+  # URL Repositori GitHub Anda
+  REPO_URL: https://github.com/farrelmamengko/scraping-data.git
+  # Branch yang digunakan
+  GIT_BRANCH: master
 
 jobs:
   build-and-push:
@@ -44,7 +48,7 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           tags: |
             type=sha,prefix=,suffix=,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest,enable=(env.GIT_BRANCH == github.ref_name)
 
       # Build dan push ke Docker Hub
       - name: Build and push Docker image
@@ -69,27 +73,56 @@ jobs:
           host: ${{ secrets.NAS_HOST }}
           port: ${{ secrets.NAS_PORT }}
           username: ${{ secrets.NAS_USERNAME }}
-          key: ${{ secrets.NAS_SSH_PRIVATE_KEY }}
+          password: ${{ secrets.NAS_PASSWORD }}
           script: |
-            # Pindah ke direktori proyek di NAS
-            cd ${{ secrets.NAS_PROJECT_PATH }}
+            PROJECT_PATH="${{ secrets.NAS_PROJECT_PATH }}"
+            REPO_URL="${{ env.REPO_URL }}"
+            BRANCH="${{ env.GIT_BRANCH }}"
+
+            # Pastikan direktori ada
+            mkdir -p "$PROJECT_PATH"
+            cd "$PROJECT_PATH"
 
             # Set agar script berhenti jika ada error
             set -e
 
-            # Login ke Docker Hub di NAS menggunakan token
+            echo "Checking Git repository in $PROJECT_PATH..."
+            if [ ! -d ".git" ] ; then
+              echo "Cloning repository..."
+              # Hapus isi folder jika ada (untuk clone bersih)
+              rm -rf ./*
+              rm -rf ./.??* # Hapus file dotfiles juga
+              git clone --depth 1 --branch $BRANCH "$REPO_URL" .
+            else
+              echo "Updating repository..."
+              git checkout $BRANCH || git checkout -b $BRANCH
+              git fetch origin
+              echo "Resetting to latest version from origin/$BRANCH..."
+              git reset --hard origin/$BRANCH
+              # Alternatif: git pull origin $BRANCH (lebih aman jika ada perubahan manual di NAS)
+            fi
+
+            echo "Ensuring data directory and database file..."
+            mkdir -p data
+            touch data/database.db
+            # Jika perlu, atur izin, tapi sebaiknya user docker sudah benar
+            # chmod 666 data/database.db
+
+            # Periksa apakah docker-compose.prod.yml ada di repo
+            if [ ! -f "docker-compose.prod.yml" ]; then
+               echo "ERROR: docker-compose.prod.yml not found in repository root!"
+               exit 1
+            fi
+
             echo "Logging into Docker Hub on NAS..."
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-            # Tarik image terbaru dari Docker Hub
             echo "Pulling latest image from Docker Hub..."
             docker compose -f docker-compose.prod.yml pull app
 
-            # Hentikan dan mulai ulang container dengan image baru
             echo "Restarting container..."
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-            # (Opsional) Bersihkan image lama yang tidak terpakai
             echo "Pruning old images..."
             docker image prune -f
 
