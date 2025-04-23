@@ -4,7 +4,7 @@ require('dotenv').config();
 const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
 const TARGET_URL = process.env.TARGET_URL;
 
-// URL untuk ScraperAPI
+// URL untuk ScraperAPI (https://www.scraperapi.com/)
 function getScraperApiUrl(url) {
   return `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(url)}&render=true`;
 }
