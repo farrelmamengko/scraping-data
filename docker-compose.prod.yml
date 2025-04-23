@@ -1,0 +1,22 @@
+# docker-compose.prod.yml
+version: '3.8'
+
+services:
+  app:
+    container_name: skk_tender_app_staging # Nama container di NAS
+    # --- Perubahan Dimulai ---
+    image: farrelmamengko/scraping-data:latest # Nama image di Docker Hub
+    # --- Perubahan Selesai ---
+    ports:
+      - "3001:3000" # Port di NAS:Port di Container (3001 agar tidak bentrok)
+    volumes:
+      # Bind mount database dari subdirectory 'data' di NAS
+      - ./data/database.db:/app/database.db
+      # Named volume untuk PDF di NAS
+      - pdf_downloads:/app/src/download\ pdf
+    restart: unless-stopped
+    # environment:
+      # - NODE_ENV=production
+
+volumes:
+  pdf_downloads: 

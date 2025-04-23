@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+Dockerfile
+docker-compose.yml
+.dockerignore
+.git
+.gitignore
+*.env
+database.db
+database.db-shm
+database.db-wal
+src/download pdf/
+README.md
+context/
+.vscode/ 

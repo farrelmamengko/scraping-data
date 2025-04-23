@@ -1,0 +1,96 @@
+# .github/workflows/deploy-staging.yml
+name: Deploy to NAS Staging (Docker Hub)
+
+on:
+  push:
+    branches:
+      - main # Jalankan saat push ke branch 'main'
+  workflow_dispatch: # Izinkan trigger manual
+
+# Variabel Lingkungan untuk workflow
+env:
+  # Nama image di Docker Hub
+  IMAGE_NAME: farrelmamengko/scraping-data
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Image to Docker Hub
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Login ke Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Setup QEMU (diperlukan untuk build multi-platform, opsional tapi bagus)
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      # Setup Docker Buildx (untuk build yang lebih efisien)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Extract metadata (tags, labels) for Docker
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=,suffix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      # Build dan push ke Docker Hub
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # (Opsional) Tambahkan platform jika diperlukan (misal jika NAS Anda ARM)
+          # platforms: linux/amd64,linux/arm64 
+
+  deploy-to-nas:
+    name: Deploy to NAS
+    needs: build-and-push # Jalankan setelah build selesai
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to NAS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.NAS_HOST }}
+          port: ${{ secrets.NAS_PORT }}
+          username: ${{ secrets.NAS_USERNAME }}
+          key: ${{ secrets.NAS_SSH_PRIVATE_KEY }}
+          script: |
+            # Pindah ke direktori proyek di NAS
+            cd ${{ secrets.NAS_PROJECT_PATH }}
+
+            # Set agar script berhenti jika ada error
+            set -e
+
+            # Login ke Docker Hub di NAS menggunakan token
+            echo "Logging into Docker Hub on NAS..."
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+            # Tarik image terbaru dari Docker Hub
+            echo "Pulling latest image from Docker Hub..."
+            docker compose -f docker-compose.prod.yml pull app
+
+            # Hentikan dan mulai ulang container dengan image baru
+            echo "Restarting container..."
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            # (Opsional) Bersihkan image lama yang tidak terpakai
+            echo "Pruning old images..."
+            docker image prune -f
+
+            echo "Deployment successful!" 
