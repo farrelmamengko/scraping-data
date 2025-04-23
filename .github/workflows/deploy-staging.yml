@@ -160,11 +160,45 @@ jobs:
           chmod +x deploy.sh
           echo "Deployment script created."
 
-      - name: Deploy to NAS
+      # 3. Salin Skrip ke NAS menggunakan scp via sshpass
+      - name: Copy deployment script to NAS
         env:
           SSHPASS: ${{ secrets.NAS_PASSWORD }}
         run: |
+          echo "Copying deployment script to NAS..."
+          # Menggunakan StrictHostKeyChecking=no dan UserKnownHostsFile=/dev/null agar tidak ada prompt host key
+          sshpass -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P ${{ secrets.NAS_PORT }} deploy.sh ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }}:/tmp/deploy.sh
+          echo "Script copied."
+
+      # 4. Eksekusi Skrip di NAS via SSH menggunakan sshpass
+      - name: Execute deployment script on NAS
+        env:
+          SSHPASS: ${{ secrets.NAS_PASSWORD }}
+          # Masih perlu pass variabel agar skrip di NAS bisa mengaksesnya via export
+          NAS_PROJECT_PATH_SECRET: ${{ secrets.NAS_PROJECT_PATH }}
+          DOCKERHUB_USERNAME_SECRET: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN_SECRET: ${{ secrets.DOCKERHUB_TOKEN }}
+          IMAGE_NAME_SECRET: ${{ env.IMAGE_NAME }}
+        run: |
           echo "Executing deployment script on NAS: ${{ secrets.NAS_HOST }}"
-          # Melewatkan secrets sebagai argumen ke bash -s
-          cat deploy.sh | sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} bash -s "${{ secrets.NAS_PROJECT_PATH }}" "${{ secrets.DOCKERHUB_USERNAME }}" "${{ secrets.DOCKERHUB_TOKEN }}" "${{ env.IMAGE_NAME }}"
-          echo "Script execution finished." 
+          # Definisi perintah SSH dengan export variabel sebelum menjalankan skrip
+          # Menggunakan nama variabel unik untuk menghindari konflik dan memastikan escaping
+          SSH_COMMAND="export PROJECT_PATH='${NAS_PROJECT_PATH_SECRET//'/\'\''}' ; \
+                       export DOCKERHUB_USER='${DOCKERHUB_USERNAME_SECRET//'/\'\''}' ; \
+                       export DOCKERHUB_TOKEN_SECRET='${DOCKERHUB_TOKEN_SECRET//'/\'\''}' ; \
+                       export IMAGE_NAME='${IMAGE_NAME_SECRET//'/\'\''}' ; \
+                       bash /tmp/deploy.sh" # Menjalankan skrip dari /tmp
+
+          # Menggunakan sshpass -e untuk membaca password dari env var SSHPASS
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} \"${SSH_COMMAND}\"
+          echo "Script execution finished."
+
+      # 5. Hapus Skrip dari NAS (Opsional, untuk kebersihan)
+      - name: Cleanup script on NAS
+        if: always() # Jalankan meskipun langkah sebelumnya gagal
+        env:
+          SSHPASS: ${{ secrets.NAS_PASSWORD }}
+        run: |
+          echo "Cleaning up script on NAS..."
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} 'rm -f /tmp/deploy.sh'
+          echo "Cleanup finished." 
