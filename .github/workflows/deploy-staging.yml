@@ -160,14 +160,16 @@ jobs:
           chmod +x deploy.sh
           echo "Deployment script created."
 
-      # 3. Salin Skrip ke NAS menggunakan scp via sshpass
+      # 3. Salin Skrip ke NAS menggunakan scp via sshpass, setelah membuat direktori tmp
       - name: Copy deployment script to NAS
         env:
           SSHPASS: ${{ secrets.NAS_PASSWORD }}
         run: |
-          echo "Copying deployment script to NAS..."
-          # Menggunakan StrictHostKeyChecking=no dan UserKnownHostsFile=/dev/null agar tidak ada prompt host key
-          sshpass -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P ${{ secrets.NAS_PORT }} deploy.sh ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }}:/tmp/deploy.sh
+          echo "Preparing directory and copying deployment script to NAS..."
+          # Buat direktori tmp di home user jika belum ada
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} 'mkdir -p ~/tmp'
+          # Salin file deploy.sh ke direktori tmp user
+          sshpass -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P ${{ secrets.NAS_PORT }} deploy.sh ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }}:~/tmp/deploy.sh
           echo "Script copied."
 
       # 4. Eksekusi Skrip di NAS via SSH menggunakan sshpass
@@ -187,7 +189,7 @@ jobs:
                        export DOCKERHUB_USER='${DOCKERHUB_USERNAME_SECRET//'/\'\''}' ; \
                        export DOCKERHUB_TOKEN_SECRET='${DOCKERHUB_TOKEN_SECRET//'/\'\''}' ; \
                        export IMAGE_NAME='${IMAGE_NAME_SECRET//'/\'\''}' ; \
-                       bash /tmp/deploy.sh" # Kembali ke path /tmp
+                       bash ~/tmp/deploy.sh" # Menjalankan skrip dari direktori ~/tmp
 
           # Menggunakan sshpass -e untuk membaca password dari env var SSHPASS
           sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} \"${SSH_COMMAND}\"
@@ -200,5 +202,5 @@ jobs:
           SSHPASS: ${{ secrets.NAS_PASSWORD }}
         run: |
           echo "Cleaning up script on NAS..."
-          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} 'rm -f /tmp/deploy.sh'
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} 'rm -f ~/tmp/deploy.sh && rmdir ~/tmp'
           echo "Cleanup finished." 
