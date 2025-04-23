@@ -11,10 +11,10 @@ on:
 env:
   # Nama image di Docker Hub
   IMAGE_NAME: farrelmamengko/scraping-data
-  # URL Repositori GitHub Anda
-  REPO_URL: https://github.com/farrelmamengko/scraping-data.git
-  # Branch yang digunakan
-  GIT_BRANCH: master
+  # URL Repositori GitHub Anda (Tidak digunakan di skrip baru, tapi bisa disimpan)
+  # REPO_URL: https://github.com/farrelmamengko/scraping-data.git
+  # Branch yang digunakan (Tidak digunakan di skrip baru, tapi bisa disimpan)
+  # GIT_BRANCH: master
 
 jobs:
   build-and-push:
@@ -67,63 +67,130 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy to NAS via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.NAS_HOST }}
-          port: ${{ secrets.NAS_PORT }}
-          username: ${{ secrets.NAS_USERNAME }}
-          key: ${{ secrets.NAS_SSH_PRIVATE_KEY }}
-          script: |
-            PROJECT_PATH="${{ secrets.NAS_PROJECT_PATH }}"
-            REPO_URL="${{ env.REPO_URL }}"
-            BRANCH="${{ env.GIT_BRANCH }}"
+      # 1. Install SSH client dan sshpass
+      - name: Install SSH tools
+        run: |
+          sudo apt-get update && sudo apt-get install -y openssh-client sshpass
 
-            # Pastikan direktori ada
-            mkdir -p "$PROJECT_PATH"
-            cd "$PROJECT_PATH"
+      # 2. Buat Skrip Deployment Lokal di Runner
+      - name: Create deployment script
+        run: |
+          cat > deploy.sh << 'EOL'
+          #!/bin/bash
+          # Script ini akan dijalankan di NAS
 
-            # Set agar script berhenti jika ada error
-            set -e
+          # Variabel dari Secrets GitHub (di-pass sebagai env var)
+          PROJECT_PATH="${NAS_PROJECT_PATH}"
+          DOCKERHUB_USER="${DOCKERHUB_USERNAME}"
+          DOCKERHUB_TOKEN_SECRET="${DOCKERHUB_TOKEN}"
+          IMAGE_TO_PULL="${IMAGE_NAME}:latest"
 
-            echo "Checking Git repository in $PROJECT_PATH..."
-            if [ ! -d ".git" ] ; then
-              echo "Cloning repository..."
-              # Hapus isi folder jika ada (untuk clone bersih)
-              rm -rf ./*
-              rm -rf ./.??* # Hapus file dotfiles juga
-              git clone --depth 1 --branch $BRANCH "$REPO_URL" .
-            else
-              echo "Updating repository..."
-              git checkout $BRANCH || git checkout -b $BRANCH
-              git fetch origin
-              echo "Resetting to latest version from origin/$BRANCH..."
-              git reset --hard origin/$BRANCH
-              # Alternatif: git pull origin $BRANCH (lebih aman jika ada perubahan manual di NAS)
-            fi
+          echo "Starting deployment to $PROJECT_PATH"
+          echo "Ensuring target directory exists..."
+          mkdir -p "$PROJECT_PATH"
+          cd "$PROJECT_PATH"
 
-            echo "Ensuring data directory and database file..."
-            mkdir -p data
-            touch data/database.db
-            # Jika perlu, atur izin, tapi sebaiknya user docker sudah benar
-            # chmod 666 data/database.db
+          echo "Ensuring data subdirectory and database file..."
+          mkdir -p data
+          touch data/database.db
+          # Jika perlu izin spesifik, uncomment dan sesuaikan:
+          # chmod 666 data/database.db
 
-            # Periksa apakah docker-compose.prod.yml ada di repo
-            if [ ! -f "docker-compose.prod.yml" ]; then
-               echo "ERROR: docker-compose.prod.yml not found in repository root!"
-               exit 1
-            fi
+          # Set agar script berhenti jika ada error
+          set -e
 
-            echo "Logging into Docker Hub on NAS..."
-            echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+          # Mencari path Docker & Docker Compose (seperti di workflow sukses)
+          docker_cmd="docker"
+          compose_cmd="docker compose"
+          if ! command -v docker &> /dev/null; then
+            echo "Docker command not found in PATH, trying known locations..."
+            for cmd_path in /usr/local/bin/docker /volume1/@appstore/Docker/usr/bin/docker /usr/bin/docker; do
+              if [ -x "$cmd_path" ]; then
+                docker_cmd="$cmd_path"
+                echo "Found Docker at $docker_cmd"
+                break
+              fi
+            done
+          fi
+          if [ "$docker_cmd" == "docker" ] && ! command -v docker &> /dev/null; then
+             echo "ERROR: Docker executable not found!"
+             exit 1
+          fi
+          # Mencari docker compose plugin atau standalone
+          if ! $docker_cmd compose version &> /dev/null; then
+            echo "Docker compose plugin not found, looking for standalone..."
+            for cmd_path in /usr/local/bin/docker-compose /volume1/@appstore/Docker/usr/bin/docker-compose /usr/bin/docker-compose; do
+               if [ -x "$cmd_path" ]; then
+                 compose_cmd="$cmd_path"
+                 echo "Found standalone Docker Compose at $compose_cmd"
+                 break
+               fi
+            done
+          fi
+          if [ "$compose_cmd" == "docker compose" ] && ! $docker_cmd compose version &> /dev/null; then
+             echo "WARNING: Docker Compose (plugin or standalone) not found. Deployment might fail if compose file needs it."
+             # Kita tetap lanjut karena mungkin hanya perlu pull
+          fi
 
-            echo "Pulling latest image from Docker Hub..."
-            docker compose -f docker-compose.prod.yml pull app
+          echo "Logging into Docker Hub on NAS..."
+          echo "${DOCKERHUB_TOKEN_SECRET}" | $docker_cmd login -u "${DOCKERHUB_USER}" --password-stdin
 
-            echo "Restarting container..."
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+          # Membuat atau memperbarui docker-compose.prod.yml DI NAS
+          # Sesuaikan isi file ini jika struktur Anda berbeda
+          echo "Creating/Updating docker-compose.prod.yml on NAS..."
+          cat > docker-compose.prod.yml << 'EOF'
+          version: '3.8'
+          services:
+            app:
+              container_name: skk_tender_app_staging
+              image: ${IMAGE_NAME_VAR}
+              ports:
+                - "3001:3000"
+              volumes:
+                - ./data/database.db:/app/database.db
+                - pdf_downloads:/app/src/download\\ pdf
+              restart: unless-stopped
+          volumes:
+            pdf_downloads:
+          EOF
+          # Ganti placeholder di file compose
+          sed -i "s|\\\${IMAGE_NAME_VAR}|${IMAGE_TO_PULL}|g" docker-compose.prod.yml
 
-            echo "Pruning old images..."
-            docker image prune -f
+          echo "Pulling latest image: ${IMAGE_TO_PULL}"
+          $compose_cmd -f docker-compose.prod.yml pull app
 
-            echo "Deployment successful!" 
+          echo "Restarting container using docker-compose.prod.yml..."
+          $compose_cmd -f docker-compose.prod.yml up -d --remove-orphans
+
+          echo "Pruning old images..."
+          $docker_cmd image prune -f
+
+          echo "Deployment successful!"
+
+          EOL
+          # Akhir dari skrip deploy.sh
+
+          chmod +x deploy.sh
+          echo "Deployment script created."
+
+      # 3. Eksekusi Skrip di NAS via SSH menggunakan sshpass
+      - name: Deploy to NAS
+        env:
+          # Pass secrets dan env vars ke environment sshpass
+          SSHPASS: ${{ secrets.NAS_PASSWORD }}
+          NAS_PROJECT_PATH: ${{ secrets.NAS_PROJECT_PATH }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+        run: |
+          echo "Executing deployment script on NAS: ${{ secrets.NAS_HOST }}"
+          # Menggunakan StrictHostKeyChecking=no dan UserKnownHostsFile=/dev/null agar tidak ada prompt host key
+          # Menggunakan sshpass -e untuk membaca password dari env var SSHPASS
+          cat deploy.sh | sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} "\
+            export NAS_PROJECT_PATH=\"${NAS_PROJECT_PATH}\"\
+            export DOCKERHUB_USERNAME=\"${DOCKERHUB_USERNAME}\"\
+            export DOCKERHUB_TOKEN=\"${DOCKERHUB_TOKEN}\"\
+            export IMAGE_NAME=\"${IMAGE_NAME}\"\
+            bash -s\
+          "
+          echo "Script execution finished." 
