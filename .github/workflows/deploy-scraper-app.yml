@@ -154,7 +154,7 @@ jobs:
           SSHPASS: ${{ secrets.NAS_PASSWORD }}
         run: |
           echo "Menyalin skrip deployment ke NAS..."
-          sshpass -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P ${{ secrets.NAS_PORT }} deploy.sh ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }}:/tmp/deploy.sh
+          sshpass -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P ${{ secrets.NAS_PORT }} deploy.sh ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }}:/volume1/docker/skk-tender-staging/deploy.sh
           echo "Skrip berhasil disalin."
 
       # Eksekusi Skrip di NAS via SSH menggunakan sshpass
@@ -163,7 +163,7 @@ jobs:
           SSHPASS: ${{ secrets.NAS_PASSWORD }}
         run: |
           echo "Mengeksekusi skrip deployment di NAS: ${{ secrets.NAS_HOST }}"
-          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} "bash /tmp/deploy.sh '${{ secrets.NAS_PROJECT_PATH }}' '${{ secrets.DOCKERHUB_USERNAME }}' '${{ secrets.DOCKERHUB_TOKEN }}' '${{ env.IMAGE_NAME }}'"
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} "bash /volume1/docker/skk-tender-staging/deploy.sh '${{ secrets.NAS_PROJECT_PATH }}' '${{ secrets.DOCKERHUB_USERNAME }}' '${{ secrets.DOCKERHUB_TOKEN }}' '${{ env.IMAGE_NAME }}'"
           echo "Eksekusi skrip selesai."
 
       # Hapus Skrip dari NAS (untuk keamanan)
@@ -173,5 +173,5 @@ jobs:
           SSHPASS: ${{ secrets.NAS_PASSWORD }}
         run: |
           echo "Membersihkan skrip di NAS..."
-          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} 'rm -f /tmp/deploy.sh'
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} 'rm -f /volume1/docker/skk-tender-staging/deploy.sh'
           echo "Pembersihan selesai." 
