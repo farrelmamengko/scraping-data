@@ -1,0 +1,229 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ jhosua ]
+    tags:
+      - 'v*'  # Push events to matching v*, i.e. v1.0, v20.15.10
+  pull_request:
+    branches: [ jhosua ]
+
+env:
+  REGISTRY: docker.io
+  DOCKER_IMAGE_NAME: jhoo17/gda-web
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        
+      - name: Build application
+        run: npm run build
+        env:
+          CONTENTFUL_SPACE_ID: ${{ secrets.CONTENTFUL_SPACE_ID }}
+          CONTENTFUL_ACCESS_TOKEN: ${{ secrets.CONTENTFUL_ACCESS_TOKEN }}
+          CONTENTFUL_MANAGEMENT_TOKEN: ${{ secrets.CONTENTFUL_MANAGEMENT_TOKEN }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/jhosua'
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=ref,event=branch
+            type=sha,format=short
+          
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            CONTENTFUL_SPACE_ID=${{ secrets.CONTENTFUL_SPACE_ID }}
+            CONTENTFUL_ACCESS_TOKEN=${{ secrets.CONTENTFUL_ACCESS_TOKEN }}
+            CONTENTFUL_MANAGEMENT_TOKEN=${{ secrets.CONTENTFUL_MANAGEMENT_TOKEN }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/jhosua'
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Deploy to NAS Staging
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.NAS_HOST }}
+          username: ${{ secrets.NAS_USERNAME }}
+          password: ${{ secrets.NAS_PASSWORD }}
+          port: ${{ secrets.NAS_PORT }}
+          script: |
+            echo "Starting deployment as user: $(whoami)"
+            echo "Current directory: $(pwd)"
+            
+            # Change to project directory
+            cd /volume1/docker/gda-web-staging
+            if [ $? -ne 0 ]; then
+              echo "Failed to change directory"
+              exit 1
+            fi
+            
+            # Update code from repository
+            echo "Updating code from repository..."
+            git fetch origin
+            git reset --hard origin/jhosua
+            
+            # Set default Docker commands
+            docker_cmd="/usr/local/bin/docker"
+            compose_cmd="/usr/local/bin/docker-compose"
+            
+            # Check if docker-compose exists, if not try alternatives
+            if [ ! -x "$compose_cmd" ]; then
+              for cmd in "/volume1/@appstore/Docker/usr/bin/docker-compose" "/usr/bin/docker-compose"; do
+                if [ -x "$cmd" ]; then
+                  compose_cmd="$cmd"
+                  echo "Found docker-compose at $compose_cmd"
+                  break
+                fi
+              done
+            fi
+            
+            # Verify docker-compose was found
+            if [ ! -x "$compose_cmd" ]; then
+              echo "docker-compose not found in any expected location"
+              exit 1
+            fi
+            
+            # Login to Docker Hub
+            echo "Logging in to Docker Hub..."
+            echo "${{ secrets.DOCKERHUB_TOKEN }}" | $docker_cmd login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+            
+            # Pull latest images
+            echo "Pulling latest images..."
+            $docker_cmd pull ${{ env.DOCKER_IMAGE_NAME }}:latest  
+            
+            # Show pulled images for verification
+            echo "Verifying pulled images..."
+            $docker_cmd images | grep "${{ env.DOCKER_IMAGE_NAME }}"
+            
+            # Stop and remove existing containers
+            echo "Stopping existing containers..."
+            $compose_cmd -f docker-compose.staging.yml down
+            
+            # Start new containers
+            echo "Starting new containers..."
+            $compose_cmd -f docker-compose.staging.yml up -d --force-recreate --pull missing
+            
+            # Verify deployment
+            echo "Verifying deployment..."
+            $compose_cmd -f docker-compose.staging.yml ps
+            
+            # Cleanup
+            echo "Cleaning up old images..."
+            $docker_cmd image prune -f
+            
+            # Logout from Docker Hub
+            $docker_cmd logout
+            
+            echo "Deployment completed"
+
+      - name: Verify Deployment
+        if: success()
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.NAS_HOST }}
+          username: ${{ secrets.NAS_USERNAME }}
+          password: ${{ secrets.NAS_PASSWORD }}
+          port: ${{ secrets.NAS_PORT }}
+          script: |
+            cd /volume1/docker/gda-web-staging
+            
+            # Set default Docker command
+            docker_cmd="/usr/local/bin/docker"
+            compose_cmd="/usr/local/bin/docker-compose"
+            
+            # Check if docker-compose exists, if not try alternatives
+            if [ ! -x "$compose_cmd" ]; then
+              for cmd in "/volume1/@appstore/Docker/usr/bin/docker-compose" "/usr/bin/docker-compose"; do
+                if [ -x "$cmd" ]; then
+                  compose_cmd="$cmd"
+                  echo "Found docker-compose at $compose_cmd"
+                  break
+                fi
+              done
+            fi
+            
+            # Verify docker-compose was found
+            if [ ! -x "$compose_cmd" ]; then
+              echo "docker-compose not found in any expected location"
+              exit 1
+            fi
+            
+            # Check if containers are running
+            if ! $compose_cmd -f docker-compose.staging.yml ps | grep -q "Up"; then
+              echo "Container is not running!"
+              $compose_cmd -f docker-compose.staging.yml ps
+              exit 1
+            fi
+            
+            # Check application health
+            echo "Checking application health..."
+            for i in {1..30}; do
+              if curl -s http://203.153.109.226:3001/ > /dev/null; then
+                echo "Application is up and running!"
+                exit 0
+              fi
+              echo "Waiting for application to be ready... (attempt $i/30)"
+              sleep 10
+            done
+            
+            # If we get here, the health check failed
+            echo "Application failed to start properly"
+            $compose_cmd -f docker-compose.staging.yml logs --tail=50
+            exit 1 
