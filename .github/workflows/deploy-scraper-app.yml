@@ -40,86 +40,39 @@ jobs:
         ssh-keyscan -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
         chmod 600 ~/.ssh/known_hosts
     
-    - name: Debug SSH Connection
-      env:
-        SSHPASS: ${{ secrets.NAS_PASSWORD }}
-      continue-on-error: true
-      run: |
-        echo "Memeriksa koneksi SSH ke NAS..."
-        echo "Host: ${{ secrets.NAS_HOST }}"
-        echo "Port: ${{ secrets.NAS_PORT }}"
-        echo "Username: ${{ secrets.NAS_USERNAME }}"
-        
-        # Cek koneksi dengan timeout yang lebih pendek
-        export SSHPASS="$SSHPASS"
-        timeout 10 sshpass -e ssh -v -o StrictHostKeyChecking=no -o ConnectTimeout=5 -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} 'echo "Test koneksi SSH"' || echo "Koneksi SSH gagal dengan status $?"
-        
-        # Cek apakah port SSH terbuka
-        echo "Memeriksa apakah port SSH terbuka..."
-        nc -z ${{ secrets.NAS_HOST }} ${{ secrets.NAS_PORT }} -w 10 || echo "Pemeriksaan port gagal dengan status $?"
-    
     - name: Deploy to NAS
       env:
         SSHPASS: ${{ secrets.NAS_PASSWORD }}
         DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         APP_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/scraper-tender-app:latest
+        TARGET_DIR: /volume1/docker/skk-tender-staging
       run: |
         export SSHPASS="$SSHPASS"
         
-        # Coba koneksi SSH sederhana
-        echo "Mencoba koneksi SSH..."
-        sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} 'echo "Koneksi SSH berhasil"'
+        echo "Verifikasi direktori target..."
+        sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} "ls -la $TARGET_DIR"
         
-        # Jalankan perintah deployment langsung melalui SSH
-        echo "Menjalankan perintah deployment melalui SSH..."
+        echo "Menjalankan deployment ke NAS..."
         sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} "
-          # Buat direktori jika belum ada
-          mkdir -p /volume1/docker/skk-tender-staging
-          cd /volume1/docker/skk-tender-staging
+          # Direktori sudah ada: $TARGET_DIR
+          cd $TARGET_DIR
           
-          # Buat direktori data jika belum ada
-          mkdir -p data
-          
-          # Set default Docker command
-          docker_cmd='docker'
-          
-          # Check if default path exists, if not try alternatives
-          if ! command -v \$docker_cmd &> /dev/null; then
-            for cmd in '/usr/local/bin/docker' '/volume1/@appstore/Docker/usr/bin/docker' '/usr/bin/docker'; do
-              if [ -x \"\$cmd\" ]; then
-                docker_cmd=\"\$cmd\"
-                echo \"Found Docker at \$docker_cmd\"
-                break
-              fi
-            done
-          fi
-          
-          # Verify Docker was found
-          if ! command -v \$docker_cmd &> /dev/null; then
-            echo \"Docker not found in any expected location\"
-            exit 1
-          fi
-          
-          # Check if docker-compose exists
+          # Docker dan Docker Compose
+          docker_cmd=\$(which docker || echo '/usr/local/bin/docker')
           compose_cmd='docker compose'
           
-          # if docker compose plugin is not available, look for docker-compose binary
+          # Cek jika docker compose plugin tidak tersedia
           if ! \$docker_cmd compose version &> /dev/null; then
-            for cmd in '/usr/local/bin/docker-compose' '/volume1/@appstore/Docker/usr/bin/docker-compose' '/usr/bin/docker-compose'; do
-              if [ -x \"\$cmd\" ]; then
-                compose_cmd=\"\$cmd\"
-                echo \"Found Docker Compose at \$compose_cmd\"
-                break
-              fi
-            done
+            compose_cmd=\$(which docker-compose || echo '/usr/local/bin/docker-compose')
           fi
           
           # Login ke DockerHub
           echo \"${DOCKERHUB_TOKEN}\" | \$docker_cmd login -u \"${DOCKERHUB_USERNAME}\" --password-stdin
           
-          # Buat atau perbarui docker-compose.yml
-          cat > docker-compose.yml << 'EOF'
+          # Buat docker-compose.yml
+          echo \"Membuat docker-compose.yml...\"
+          cat > docker-compose.yml << 'EOL'
           version: '3.8'
           services:
             app:
@@ -130,30 +83,33 @@ jobs:
               restart: unless-stopped
               volumes:
                 - ./data:/app/data
-          EOF
+          EOL
           
-          # Ganti variabel di docker-compose.yml
+          # Ganti placeholder
           sed -i \"s|IMAGE_PLACEHOLDER|${APP_IMAGE}|g\" docker-compose.yml
           
-          echo \"File docker-compose.yml dibuat\"
+          echo \"File docker-compose.yml dibuat di $TARGET_DIR\"
+          cat docker-compose.yml
           
           # Pull image terbaru
+          echo \"Pulling image: ${APP_IMAGE}\"
           \$docker_cmd pull ${APP_IMAGE}
           
-          # Restart containers menggunakan docker-compose atau docker compose
-          if [[ \$compose_cmd == *'docker-compose'* ]] || \$docker_cmd compose version &> /dev/null; then
-            echo \"Menggunakan \$compose_cmd untuk deployment...\"
-            \$compose_cmd down 2>/dev/null || true
-            \$compose_cmd up -d
+          # Deploy dengan docker-compose atau docker run
+          if [ -x \"\$compose_cmd\" ] || \$docker_cmd compose version &> /dev/null; then
+            echo \"Deploying dengan \$compose_cmd...\"
+            if [ \"\$compose_cmd\" = \"docker compose\" ]; then
+              \$docker_cmd compose down 2>/dev/null || true
+              \$docker_cmd compose up -d
+            else
+              \$compose_cmd down 2>/dev/null || true
+              \$compose_cmd up -d
+            fi
           else
-            # Fallback ke docker run jika docker-compose tidak tersedia
-            echo \"Docker Compose tidak ditemukan, menggunakan Docker run...\"
-            
-            # Stop dan hapus container yang sudah ada
+            echo \"Docker Compose tidak ditemukan, deploying dengan docker run...\"
             \$docker_cmd stop scraper_tender_app 2>/dev/null || true
             \$docker_cmd rm scraper_tender_app 2>/dev/null || true
             
-            # Jalankan aplikasi
             \$docker_cmd run -d \\
               --name scraper_tender_app \\
               --restart unless-stopped \\
@@ -162,9 +118,13 @@ jobs:
               ${APP_IMAGE}
           fi
           
-          # Bersihkan image yang tidak digunakan
+          # Bersihkan image lama
           \$docker_cmd image prune -f
           
-          echo \"Deployment berhasil\"
-          echo \"Aplikasi seharusnya tersedia di http://\$(hostname -I | awk '{print \$1}'):3002\"
+          # Tampilkan status
+          echo \"Status container:\"
+          \$docker_cmd ps | grep scraper_tender_app
+          
+          echo \"Deployment berhasil selesai\"
+          echo \"Aplikasi tersedia di http://\$(hostname -I | awk '{print \$1}'):3002\"
         " 
