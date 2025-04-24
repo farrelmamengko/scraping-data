@@ -4,7 +4,7 @@ const path = require('path');
 
 /**
  * Membuat direktori jika belum ada
- * @param {string} directory - Path direktori yang akan dibuat
+ * @param {string} directory - Path direktori yang akan dibuatt
  */
 function ensureDirectoryExists(directory) {
   if (!fs.existsSync(directory)) {

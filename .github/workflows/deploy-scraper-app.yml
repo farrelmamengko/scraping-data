@@ -27,7 +27,7 @@ jobs:
       with:
         context: .
         push: true
-        tags: ${{ secrets.DOCKERHUB_USERNAME }}/scraper-tender-app:latest
+        tags: farrelmamengko/scraping-data:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
@@ -43,9 +43,9 @@ jobs:
     - name: Deploy to NAS
       env:
         SSHPASS: ${{ secrets.NAS_PASSWORD }}
-        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        DOCKERHUB_USERNAME: farrelmamengko
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-        APP_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/scraper-tender-app:latest
+        APP_IMAGE: farrelmamengko/scraping-data:latest
         TARGET_DIR: /volume1/docker/skk-tender-staging
       run: |
         export SSHPASS="$SSHPASS"
@@ -76,13 +76,16 @@ jobs:
           version: '3.8'
           services:
             app:
-              container_name: scraper_tender_app
+              container_name: skk_tender_app
               image: IMAGE_PLACEHOLDER
               ports:
                 - \"3002:3000\"
               restart: unless-stopped
               volumes:
                 - ./data:/app/data
+                - pdf_downloads:/app/src/download\\ pdf
+          volumes:
+            pdf_downloads:
           EOL
           
           # Ganti placeholder
@@ -107,14 +110,15 @@ jobs:
             fi
           else
             echo \"Docker Compose tidak ditemukan, deploying dengan docker run...\"
-            \$docker_cmd stop scraper_tender_app 2>/dev/null || true
-            \$docker_cmd rm scraper_tender_app 2>/dev/null || true
+            \$docker_cmd stop skk_tender_app 2>/dev/null || true
+            \$docker_cmd rm skk_tender_app 2>/dev/null || true
             
             \$docker_cmd run -d \\
-              --name scraper_tender_app \\
+              --name skk_tender_app \\
               --restart unless-stopped \\
               -p 3002:3000 \\
               -v \"\$(pwd)/data:/app/data\" \\
+              -v \"pdf_downloads:/app/src/download\\ pdf\" \\
               ${APP_IMAGE}
           fi
           
@@ -123,7 +127,7 @@ jobs:
           
           # Tampilkan status
           echo \"Status container:\"
-          \$docker_cmd ps | grep scraper_tender_app
+          \$docker_cmd ps | grep skk_tender_app
           
           echo \"Deployment berhasil selesai\"
           echo \"Aplikasi tersedia di http://\$(hostname -I | awk '{print \$1}'):3002\"
