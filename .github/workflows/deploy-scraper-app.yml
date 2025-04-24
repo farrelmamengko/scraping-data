@@ -148,30 +148,12 @@ jobs:
           chmod +x deploy.sh
           echo "Skrip deployment dibuat."
 
-      # Salin Skrip ke NAS menggunakan scp via sshpass
-      - name: Salin skrip deployment ke NAS
+      # Eksekusi langsung dari local tanpa memindahkan skrip ke NAS
+      - name: Eksekusi deployment ke NAS
         env:
           SSHPASS: ${{ secrets.NAS_PASSWORD }}
         run: |
-          echo "Menyalin skrip deployment ke NAS..."
-          sshpass -e scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -P ${{ secrets.NAS_PORT }} deploy.sh ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }}:/volume1/docker/skk-tender-staging/deploy.sh
-          echo "Skrip berhasil disalin."
-
-      # Eksekusi Skrip di NAS via SSH menggunakan sshpass
-      - name: Eksekusi skrip deployment di NAS
-        env:
-          SSHPASS: ${{ secrets.NAS_PASSWORD }}
-        run: |
-          echo "Mengeksekusi skrip deployment di NAS: ${{ secrets.NAS_HOST }}"
-          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} "bash /volume1/docker/skk-tender-staging/deploy.sh '${{ secrets.NAS_PROJECT_PATH }}' '${{ secrets.DOCKERHUB_USERNAME }}' '${{ secrets.DOCKERHUB_TOKEN }}' '${{ env.IMAGE_NAME }}'"
-          echo "Eksekusi skrip selesai."
-
-      # Hapus Skrip dari NAS (untuk keamanan)
-      - name: Bersihkan skrip di NAS
-        if: always() # Jalankan meskipun langkah sebelumnya gagal
-        env:
-          SSHPASS: ${{ secrets.NAS_PASSWORD }}
-        run: |
-          echo "Membersihkan skrip di NAS..."
-          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} 'rm -f /volume1/docker/skk-tender-staging/deploy.sh'
-          echo "Pembersihan selesai." 
+          echo "Menjalankan deployment langsung ke NAS: ${{ secrets.NAS_HOST }}"
+          # Jalankan skrip lokal dan teruskan parameter ke NAS melalui SSH
+          sshpass -e ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p ${{ secrets.NAS_PORT }} ${{ secrets.NAS_USERNAME }}@${{ secrets.NAS_HOST }} 'cd ${{ secrets.NAS_PROJECT_PATH }} && bash -s' < deploy.sh '${{ secrets.NAS_PROJECT_PATH }}' '${{ secrets.DOCKERHUB_USERNAME }}' '${{ secrets.DOCKERHUB_TOKEN }}' '${{ env.IMAGE_NAME }}'
+          echo "Deployment selesai." 
