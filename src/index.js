@@ -21,8 +21,8 @@
  */
 
 require('dotenv').config();
-const { scrapePrakualifikasi } = require('./scrapers/prakualifikasi');
-const pelelangan = require('./scrapers/pelelangan');
+const { scrapeProcurementList } = require('./scrapers/procurementList');
+const { scrapePelelangan } = require('./scrapers/pelelangan');
 
 /**
  * Fungsi utama yang menjalankan proses scraping
@@ -30,9 +30,12 @@ const pelelangan = require('./scrapers/pelelangan');
 async function main() {
   try {
     console.log('Memulai proses scraping...');
-    const data = await scrapePrakualifikasi();
-    console.log(`Berhasil mengumpulkan ${data.length} data tender`);
-    console.log('Data:', data);
+    const prakualifikasiData = await scrapeProcurementList();
+    console.log(`Berhasil mengumpulkan ${prakualifikasiData.length} data tender Prakualifikasi`);
+    console.log('Data Prakualifikasi:', prakualifikasiData);
+    const pelelanganData = await scrapePelelangan();
+    console.log(`Berhasil mengumpulkan ${pelelanganData.length} data tender Pelelangan Umum`);
+    console.log('Data Pelelangan Umum:', pelelanganData);
   } catch (error) {
     console.error('Error:', error.message);
   }

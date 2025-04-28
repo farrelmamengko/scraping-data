@@ -7,7 +7,7 @@ Proyek ini berisi sekumpulan scraper Node.js untuk mengambil data tender dari si
 *   Scraping data Undangan Prakualifikasi.
 *   Scraping data Pelelangan Umum melalui endpoint AJAX.
 *   **Scraping Efisien**: Hanya mengambil dan memproses data tender **baru** yang belum ada di database.
-*   Menyimpan data hasil scraping ke database SQLite (`database.db`).
+*   Menyimpan data hasil scraping ke database **PostgreSQL**.
 *   **Mengunduh attachment PDF** yang terkait dengan tender Prakualifikasi dan Pelelangan Umum menggunakan otomatisasi browser Playwright.
 *   Menangani paginasi saat mengunduh PDF.
 *   Melewati unduhan PDF jika file dengan nama yang sama sudah ada.
@@ -30,7 +30,10 @@ Proyek ini berisi sekumpulan scraper Node.js untuk mengambil data tender dari si
     npx playwright install
     ```
     *(Ini mungkin memerlukan waktu beberapa saat tergantung koneksi internet Anda)*
-4.  **(Opsional) Setup Database:** Database SQLite (`database.db`) akan dibuat secara otomatis saat scraper atau server dijalankan pertama kali jika belum ada.
+4.  **Setup Database PostgreSQL:**
+    - Pastikan Anda sudah menjalankan PostgreSQL (bisa menggunakan Docker Compose yang disediakan).
+    - Database dan tabel akan dibuat otomatis saat server dijalankan.
+    - Lihat konfigurasi di `docker-compose.yml` atau sesuaikan environment variable jika perlu.
 
 ## Penggunaan
 
@@ -58,7 +61,6 @@ Proyek ini berisi sekumpulan scraper Node.js untuk mengambil data tender dari si
 *   `src/download pdf/`: **Direktori tempat file PDF yang berhasil diunduh disimpan.**
 *   `views/`: Berisi template EJS untuk aplikasi web (`tenders.ejs`, `dashboard.ejs`).
 *   `public/`: Berisi file statis (CSS, JS client-side) untuk aplikasi web.
-*   `database.db`: File database SQLite.
 *   `server.js`: Script utama untuk menjalankan server aplikasi web Express.
 *   `.env`: File untuk menyimpan variabel lingkungan (jika ada, saat ini tidak digunakan secara aktif oleh fungsi inti).
 *   `package.json`, `package-lock.json`: File manajemen dependensi Node.js.
@@ -69,14 +71,14 @@ Proyek ini adalah aplikasi Node.js yang dirancang untuk:
 
 1.  **Mengambil (scrape)** data pengadaan tender secara otomatis dari situs web Centralized Integrated Vendor Database (CIVD) SKK Migas.
 2.  Mengambil dua jenis tender utama: **Undangan Prakualifikasi** dan **Pelelangan Umum**.
-3.  **Menyimpan** data yang telah di-scrape ke dalam database SQLite lokal.
+3.  **Menyimpan** data yang telah di-scrape ke dalam database **PostgreSQL**.
 4.  **Menyajikan** data tersebut melalui **antarmuka web (webapp)** yang interaktif, menampilkan daftar tender dengan pagination, detail tender dalam modal popup, dan sebuah dashboard ringkasan.
 
 ## 2. Fitur Utama
 
 *   **Scraping Otomatis**: Mengambil data dari sumber web yang relevan.
 *   **Dua Jenis Tender**: Mendukung pengambilan data Prakualifikasi dan Pelelangan Umum.
-*   **Penyimpanan Database**: Menggunakan SQLite untuk persistensi data yang efisien.
+*   **Penyimpanan Database**: Menggunakan PostgreSQL untuk persistensi data yang efisien.
 *   **Web Interface**: Menampilkan data melalui server web Express dengan template EJS.
 *   **Tampilan Kartu Tender**: Menyajikan data tender dalam format kartu yang informatif dan visual.
 *   **Pagination**: Membagi daftar tender yang panjang menjadi beberapa halaman (6 item per halaman) untuk kemudahan navigasi.
@@ -95,31 +97,27 @@ Sistem ini terdiri dari beberapa komponen utama:
 *   **Scrapers (`src/scrapers/`)**: Bertugas mengambil data.
     *   `procurementList.js`: Untuk Undangan Prakualifikasi.
     *   `pelelangan.js`: Untuk Pelelangan Umum.
-*   **Database Utility (`src/utils/database.js`)**: Mengelola koneksi dan operasi database SQLite (`database.db`). Menyediakan fungsi `insertProcurementData` dan `getExistingTenderIds`.
+*   **Database Utility (`src/utils/database.js`)**: Mengelola koneksi dan operasi database PostgreSQL. Menyediakan fungsi `insertProcurementData` dan `getExistingTenderIds`.
 *   **Helper Utility (`src/utils/helpers.js`)**: Berisi fungsi pendukung (misalnya, `removeDuplicates`).
 *   **Server (`server.js`)**: Server web Express yang menangani request, mengambil data dari database, dan merender halaman.
 *   **Views (`views/`)**: File template EJS untuk antarmuka pengguna.
     *   `tenders.ejs`: Halaman utama menampilkan daftar tender (dengan kartu dan pagination).
     *   `dashboard.ejs`: Halaman dashboard dengan ringkasan, kalender, dan tender terbaru.
-*   **Database File (`database.db`)**: File SQLite tempat data tender disimpan.
 *   **Tests (`src/tests/`)**: Berisi file untuk pengujian fungsi scraper (implementasi tes saat ini mungkin perlu diperbarui).
 
 ## 4. Pengaturan & Instalasi
 
-1.  **Prasyarat**: Pastikan Anda memiliki Node.js dan npm (atau yarn) terinstal di sistem Anda.
+1.  **Prasyarat**: Pastikan Anda memiliki Node.js, npm, dan PostgreSQL (atau gunakan Docker Compose yang disediakan).
 2.  **Clone Repository**: Dapatkan kode proyek ini.
 3.  **Instal Dependensi**: Buka terminal di direktori root proyek dan jalankan:
     ```bash
     npm install
     ```
-    Ini akan menginstal library yang diperlukan seperti `express`, `axios`, `cheerio`, `sqlite3`, `ejs`, dll.
-4.  **Inisialisasi Database**: Database (`database.db`) dan tabel (`procurement_list`) akan dibuat secara otomatis saat server atau scraper pertama kali dijalankan (melalui `initializeDb` di `database.js`).
+4.  **Inisialisasi Database**: Database dan tabel akan dibuat secara otomatis saat server dijalankan (melalui `initializeDb` di `database.js`).
 
 ## 5. Menjalankan Aplikasi
 
 ### a. Menjalankan Scrapers (Untuk Mengisi/Memperbarui Database)
-
-**Penting:** Jalankan scraper satu per satu dan pastikan tidak ada aplikasi lain (seperti DB Browser) yang mengunci file `database.db`.
 
 1.  **Jalankan Scraper Prakualifikasi:**
     ```bash
@@ -130,7 +128,7 @@ Sistem ini terdiri dari beberapa komponen utama:
     node src/scrapers/pelelangan.js
     ```
 
-Menjalankan scraper akan mengambil data terbaru dari CIVD dan menyimpannya ke `database.db`. Kolom `tanggal` akan diisi dengan waktu scraping saat ini.
+Menjalankan scraper akan mengambil data terbaru dari CIVD dan menyimpannya ke database PostgreSQL. Kolom `tanggal` akan diisi dengan waktu scraping saat ini.
 
 ### b. Menjalankan Web Server (Untuk Melihat Data)
 
@@ -151,13 +149,16 @@ Menjalankan scraper akan mengambil data terbaru dari CIVD dan menyimpannya ke `d
 
 ## 7. Catatan & Potensi Pengembangan
 
-*   **Database Locking**: Jika Anda mendapatkan error `SQLITE_BUSY`, pastikan tidak ada proses lain yang mengakses `database.db`.
 *   **Update Data**: Scraper saat ini dirancang untuk **hanya menambahkan data baru**. Data lama di database (misalnya, perubahan batas waktu pada tender yang sudah ada) **tidak akan diperbarui** oleh proses scraping. Jika diperlukan pembaruan data lama, strategi lain seperti menghapus data lama sebelum scraping atau implementasi logika UPDATE perlu dipertimbangkan.
 *   **Filter Kata Kunci**: Fitur selanjutnya bisa berupa penambahan filter berdasarkan kata kunci di halaman utama atau dashboard untuk menampilkan tender yang relevan dengan bidang usaha tertentu.
 *   **Deskripsi Detail**: Modal saat ini menampilkan bidang usaha sebagai deskripsi. Untuk menampilkan deskripsi pekerjaan yang sangat panjang seperti di situs aslinya, scraper perlu dimodifikasi untuk mengambil teks tersebut dan skema database perlu disesuaikan.
 *   **Penjadwalan Otomatis**: Gunakan `node-cron` atau penjadwal sistem operasi untuk menjalankan scraper secara berkala.
 *   **Error Handling & Logging**: Tingkatkan penanganan error dan standarisasi format log untuk pemantauan yang lebih baik.
 *   **Pemisahan CSS/JS**: Pindahkan kode CSS dan JavaScript dari file EJS ke file statis terpisah di folder `public/` untuk organisasi yang lebih baik.
+
+## Migrasi dari SQLite
+
+Jika Anda sebelumnya menggunakan SQLite, pastikan file `database.db` sudah dihapus dan seluruh sistem sudah berjalan di atas PostgreSQL. Semua utility dan fitur sudah disesuaikan untuk PostgreSQL.
 
 ## Instalasi
 

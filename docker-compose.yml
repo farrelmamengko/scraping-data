@@ -7,17 +7,30 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # Tetap gunakan Bind Mount untuk database (ini berhasil)
-      - ./database.db:/app/database.db 
-      # Gunakan Named Volume untuk PDF (sesuai permintaan)
-      - pdf_downloads:/app/src/download\ pdf 
+      # Bind mount untuk database
+      - ./database.db:/app/database.db
+      # Bind mount untuk PDF hasil download ke folder container
+      - ./downloaded_pdfs:/app/downloaded_pdfs
     restart: unless-stopped
     # environment:
       # - NODE_ENV=production
 
+  db:
+    container_name: skk_tender_db
+    image: postgres:14
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_DB: skk_tender
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
 # Definisikan named volume yang digunakan di atas
 volumes:
-  pdf_downloads: # Volume untuk menyimpan PDF yang diunduh oleh container
+  postgres_data:
 
 # Hapus definisi named volumes di bawah ini
 # volumes:

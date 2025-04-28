@@ -37,8 +37,8 @@ Dokumen ini menjelaskan logika antarmuka pengguna (UI) dari aplikasi web Express
     *   **Filter**:
         *   `keyword`: Mencari teks di kolom `judul`, `deskripsi`, `bidangUsaha`, `kkks`, `golonganUsaha`, dan `jenisPengadaan` (menggunakan `LIKE %...%`).
         *   `type`: Memfilter berdasarkan `tipe_tender` ('Prakualifikasi' atau 'Pelelangan Umum').
-        *   `status`: Memfilter berdasarkan apakah tender 'active' (batas waktu >= hari ini) atau 'expired' (batas waktu < hari ini). Logika perbandingan tanggal dilakukan di query SQL.
-    *   Backend (`server.js`) membaca `req.query` (keyword, type, status) dan membangun klausa `WHERE` pada query SQL secara dinamis.
+        *   `status`: Memfilter berdasarkan apakah tender 'active' (batas waktu >= hari ini) atau 'expired' (batas waktu < hari ini). Logika perbandingan tanggal dilakukan di backend (JavaScript) setelah data diambil dari database PostgreSQL.
+    *   Backend (`server.js`) membaca `req.query` (keyword, type, status) dan membangun filter secara dinamis.
     *   Nilai filter yang dipilih dipertahankan di form setelah pencarian.
     *   Menampilkan ringkasan hasil pencarian (jika ada filter aktif) di atas daftar tender.
     *   Tombol "Reset" mengarahkan kembali ke `/` tanpa parameter query.
@@ -96,7 +96,7 @@ Dokumen ini menjelaskan logika antarmuka pengguna (UI) dari aplikasi web Express
 ## 5. Alur Data Backend ke Frontend
 
 1.  Request masuk ke route Express (`/` atau `/dashboard`).
-2.  Handler route di `server.js` mengambil data dari database SQLite (`database.db`) menggunakan `getDb()` dan query SQL. Data tender utama (`procurement_list`) diambil, seringkali dengan JOIN atau query terpisah untuk mendapatkan data terkait dari tabel `attachments`.
+2.  Handler route di `server.js` mengambil data dari database PostgreSQL menggunakan utility di `src/utils/database.js`.
 3.  Data mentah dari database diproses:
     *   Path PDF lokal ditambahkan (`addLocalPdfPath`), menggunakan data nama file dari `attachments` dan mengecek keberadaan file di `src/download pdf/`.
     *   Flag status ditambahkan (`checkIsExpired`, `checkIsNew`).

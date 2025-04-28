@@ -1,443 +1,242 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs'); // Tambahkan fs
-const { getDb, closeDb } = require('./src/utils/database'); // Sesuaikan path jika perlu
-const { sanitizeFilename } = require('./src/utils/helpers'); // Import sanitizeFilename
+const { getTendersWithAttachments, initializeDb } = require('./src/utils/database');
+const fs = require('fs');
+const { sanitizeFilename } = require('./src/utils/helpers');
 
 const app = express();
 const port = 3000;
 
-// --- Fungsi Bantuan Baru untuk Cek Batas Waktu ---
-// Mengubah "DD Mon YYYY" menjadi objek Date
-function parseBatasWaktu(dateStr) {
-    if (!dateStr) return null;
-    const parts = dateStr.split(' ');
-    if (parts.length !== 3) return null;
-    const day = parseInt(parts[0], 10);
-    const monthMap = {
-        'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-        'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-    };
-    const month = monthMap[parts[1]];
-    const year = parseInt(parts[2], 10);
-    if (isNaN(day) || month === undefined || isNaN(year)) return null;
-    // Set ke awal hari untuk perbandingan yang konsisten
-    const date = new Date(year, month, day);
-    date.setHours(0, 0, 0, 0);
-    return date;
-}
-
-// Mengecek apakah tanggal batas waktu sudah lewat
-function checkIsExpired(batasWaktuStr) {
-    const deadlineDate = parseBatasWaktu(batasWaktuStr);
-    if (!deadlineDate) {
-        return false; // Jika format tanggal tidak valid, anggap belum expired
-    }
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Set ke awal hari ini
-
-    return deadlineDate < today; // Jika deadline < hari ini, maka sudah expired
-}
-// --- Akhir Fungsi Bantuan ---
-
-// --- Fungsi Bantuan Baru untuk Cek Apakah Baru ---
-function checkIsNew(createdAtStr) {
-    if (!createdAtStr) return false;
-    try {
-        const createdAtDate = new Date(createdAtStr);
-        const now = new Date();
-        const timeDifference = now.getTime() - createdAtDate.getTime();
-        const hoursDifference = timeDifference / (1000 * 60 * 60);
-        return hoursDifference < 24; // Kurang dari 24 jam
-    } catch (e) {
-        console.error("Error parsing createdAt date:", createdAtStr, e);
-        return false; // Jika error parsing, anggap tidak baru
-    }
-}
-// --- Akhir Fungsi Bantuan ---
-
-// --- Direktori PDF Lokal ---
-const localPdfDir = path.join(__dirname, 'src', 'download pdf');
-console.log("Mengecek direktori PDF lokal:", localPdfDir);
-if (!fs.existsSync(localPdfDir)) {
-    console.warn("PERINGATAN: Direktori PDF lokal tidak ditemukan. Buat secara manual atau jalankan scraper.");
-}
-// --------------------------
-
-// Setup EJS
+// Set EJS sebagai view engine
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
 
-// Middleware (jika diperlukan di masa mendatang)
-app.use(express.static(path.join(__dirname, 'public'))); // Untuk file statis seperti CSS/JS eksternal
+// Middleware untuk parsing body
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// --- Route Baru untuk Menyajikan PDF Lokal ---
-app.get('/local-pdfs/:filename', (req, res) => {
-  const filename = req.params.filename;
-  // --- Log Debugging Ditambahkan ---
-  console.log(`[PDF Route] Request diterima untuk: ${filename}`);
-  console.log(`[PDF Route] Decoded filename: ${decodeURIComponent(filename)}`);
-  // --------------------------------
+// Serve static files
+app.use('/local-pdfs', express.static(path.join(__dirname, 'downloaded_pdfs')));
+app.use(express.static('public'));
 
-  // Validasi sederhana: hanya izinkan .pdf dan cegah path traversal
-  if (!filename.endsWith('.pdf') || filename.includes('..')) {
-    return res.status(400).send('Nama file tidak valid.');
-  }
+// Inisialisasi database saat server start
+initializeDb().catch(console.error);
 
-  const filePath = path.join(localPdfDir, filename);
+// Helper function untuk mengecek apakah tender baru (24 jam terakhir)
+function checkIsNew(createdAt) {
+    const now = new Date();
+    const tenderDate = new Date(createdAt);
+    const diffHours = (now - tenderDate) / (1000 * 60 * 60);
+    return diffHours <= 24;
+}
 
-  // Cek apakah file ada sebelum mengirim
-  fs.access(filePath, fs.constants.R_OK, (err) => {
-    if (err) {
-      console.error(`[PDF Route] Error akses file PDF: ${filePath}`, err);
-      return res.status(404).send('File PDF tidak ditemukan.');
-    }
-    // --- Log Debugging Ditambahkan ---
-    console.log(`[PDF Route] File ditemukan: ${filePath}. Mencoba mengirim...`);
-    // --------------------------------
-    // Kirim file
-    // Set header Content-Type secara eksplisit
-    res.setHeader('Content-Type', 'application/pdf');
-    res.sendFile(filePath, (errSend) => {
-        if(errSend) {
-            console.error(`Error mengirim file PDF: ${filePath}`, errSend);
-            // Jangan kirim respons lagi jika header sudah terkirim
-            if (!res.headersSent) {
-                 res.status(500).send('Gagal mengirim file PDF.');
-            }
-        } else {
-            // Tambahkan log sukses
-            console.log(`[PDF Route] Berhasil mengirim file PDF: ${filePath}`);
-        }
-    });
-  });
-});
-// -------------------------------------------
+// Helper function untuk mengecek apakah tender sudah expired
+function checkIsExpired(batasWaktu) {
+    if (!batasWaktu) return false;
+    const today = new Date();
+    const parts = batasWaktu.split(' ');
+    const months = {'Jan':0,'Feb':1,'Mar':2,'Apr':3,'May':4,'Jun':5,
+                   'Jul':6,'Aug':7,'Sep':8,'Oct':9,'Nov':10,'Dec':11};
+    const batasDate = new Date(parts[2], months[parts[1]], parts[0]);
+    return today > batasDate;
+}
 
-// Route utama untuk menampilkan tender
-app.get('/', (req, res) => {
-  const db = getDb();
-  
-  // Parameter pencarian
-  const keyword = req.query.keyword || '';
-  const type = req.query.type || '';
-  const status = req.query.status || '';
-  
-  // Basis SQL query
-  let sql = 'SELECT id, judul, tanggal, batasWaktu, kkks, bidangUsaha, url, attachmentUrl, attachmentName, tipe_tender, createdAt, deskripsi, golonganUsaha, jenisPengadaan FROM procurement_list';
-  const sqlParams = [];
-  
-  // Menambahkan kondisi WHERE berdasarkan parameter pencarian
-  const conditions = [];
-  
-  if (keyword) {
-    // Tambahkan pencarian berdasarkan ID
-    conditions.push('(id LIKE ? OR judul LIKE ? OR bidangUsaha LIKE ? OR kkks LIKE ? OR deskripsi LIKE ? OR golonganUsaha LIKE ? OR jenisPengadaan LIKE ?)');
-    const searchPattern = `%${keyword}%`;
-    // Tambahkan parameter ID ke depan
-    sqlParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
-  }
-  
-  if (type) {
-    conditions.push('tipe_tender = ?');
-    sqlParams.push(type);
-  }
-  
-  if (status === 'expired' || status === 'active') {
-    // Menggunakan fungsi SQLite untuk parsing tanggal
-    const today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
-    
-    if (status === 'expired') {
-      conditions.push('date(substr(batasWaktu, 8, 4) || "-" || CASE substr(batasWaktu, 4, 3) WHEN "Jan" THEN "01" WHEN "Feb" THEN "02" WHEN "Mar" THEN "03" WHEN "Apr" THEN "04" WHEN "May" THEN "05" WHEN "Jun" THEN "06" WHEN "Jul" THEN "07" WHEN "Aug" THEN "08" WHEN "Sep" THEN "09" WHEN "Oct" THEN "10" WHEN "Nov" THEN "11" WHEN "Dec" THEN "12" END || "-" || substr(batasWaktu, 1, 2)) < ?');
-    } else { // active
-      conditions.push('date(substr(batasWaktu, 8, 4) || "-" || CASE substr(batasWaktu, 4, 3) WHEN "Jan" THEN "01" WHEN "Feb" THEN "02" WHEN "Mar" THEN "03" WHEN "Apr" THEN "04" WHEN "May" THEN "05" WHEN "Jun" THEN "06" WHEN "Jul" THEN "07" WHEN "Aug" THEN "08" WHEN "Sep" THEN "09" WHEN "Oct" THEN "10" WHEN "Nov" THEN "11" WHEN "Dec" THEN "12" END || "-" || substr(batasWaktu, 1, 2)) >= ?');
-    }
-    sqlParams.push(today);
-  }
-  
-  // Gabungkan kondisi jika ada
-  if (conditions.length > 0) {
-    sql += ' WHERE ' + conditions.join(' AND ');
-  }
-  
-  // Pengurutan tetap sama
-  sql += ' ORDER BY createdAt DESC';
+function normalizeFilename(name) {
+    return name
+        .replace(/[\s.()]+/g, '_') // Ganti spasi, titik, tanda kurung dengan underscore
+        .replace(/[^a-zA-Z0-9_]+/g, '') // Hapus karakter selain huruf, angka, underscore
+        .replace(/_+/g, '_')     // Gabungkan underscore berlebih
+        .toLowerCase();
+}
 
-  // Pagination setup
-  const currentPage = parseInt(req.query.page || '1', 10);
-  const itemsPerPage = 6;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-
-  // Ambil data tender utama dulu
-  db.all(sql, sqlParams, async (err, allRows) => { // Jadikan callback ini async
-    if (err) {
-      console.error("Error fetching data:", err.message);
-      res.status(500).send("Error mengambil data dari database");
-      return;
-    }
-
-    // --- Tambahkan flag isExpired dan isNew ---
-    const processTenders = (rows) => {
-      return rows.map(tender => {
-        tender.isExpired = checkIsExpired(tender.batasWaktu);
-        tender.isNew = checkIsNew(tender.createdAt);
-        if (tender.isNew) {
-             console.log(`[Check New] Tender "${tender.judul}" (Created: ${tender.createdAt}) terdeteksi BARU.`);
-        } else {
-             const createdDate = new Date(tender.createdAt);
-             const hoursAgo = (new Date().getTime() - createdDate.getTime()) / (1000 * 60 * 60);
-             if (hoursAgo < 48) {
-                 console.log(`[Check New] Tender "${tender.judul}" (Created: ${tender.createdAt}, ${hoursAgo.toFixed(1)} jam lalu) TIDAK terdeteksi baru.`);
-             }
-        }
-        return tender;
-      });
-    };
-
-    // --- Modifikasi Data Tender untuk Menyertakan Path PDF Lokal (Revisi) ---
-    const addLocalPdfPath = (tender) => {
-        let filesInDir = null;
+function addLocalPdfPath(tender) {
+    if (tender.attachments) {
+        const pdfDir = path.join(__dirname, 'downloaded_pdfs');
+        let pdfFiles = [];
         try {
-            // Baca direktori sekali saja jika belum
-            filesInDir = fs.readdirSync(localPdfDir);
-        } catch (readdirError) {
-            console.error(`[PDF Check DB Attach /] Error membaca direktori ${localPdfDir}:`, readdirError);
-            // Jika direktori tidak bisa dibaca, set dbAttachments kosong agar loop tidak jalan
-            tender.dbAttachments = []; 
-            return tender; 
+            pdfFiles = fs.readdirSync(pdfDir);
+        } catch (e) {
+            pdfFiles = [];
         }
-
-        // Proses attachments yang diambil dari DB
-        if (tender.dbAttachments && tender.dbAttachments.length > 0 && filesInDir) {
-            tender.dbAttachments.forEach(attachment => {
-                // Gunakan attachment_name dari DB
-                if (attachment.attachment_name) { 
-                    const pdfFilename = sanitizeFilename(attachment.attachment_name);
-                    if (pdfFilename) {
-                        const fileExists = filesInDir.includes(pdfFilename);
-                        console.log(`[PDF Check DB Attach /] Mengecek file: ${pdfFilename} (dari DB attachment ${attachment.attachment_id}). Hasil readdirSync.includes: ${fileExists}`);
-                        if (fileExists) {
-                            // Tambahkan localPath ke objek attachment DARI DB
-                            attachment.localPath = `/local-pdfs/${encodeURIComponent(pdfFilename)}`;
-                        } else {
-                            console.log(`[PDF Check DB Attach /] File lokal TIDAK DITEMUKAN untuk attachment: ${attachment.attachment_name} (sanitized: ${pdfFilename})`);
-                        }
-                    }
-                } else {
-                    console.warn(`[PDF Check DB Attach /] Attachment ${attachment.attachment_id} untuk tender ${tender.id} tidak memiliki attachment_name.`);
-                }
-            });
-            
-            // Set localPdfPath utama jika attachment pertama punya path lokal
-            // Ini hanya untuk kompatibilitas jika bagian lain kode masih menggunakannya
-            if (tender.dbAttachments[0] && tender.dbAttachments[0].localPath) {
-                tender.localPdfPath = tender.dbAttachments[0].localPath;
+        tender.attachments = tender.attachments.map(attachment => {
+            // Cek nama asli dulu
+            const fileName = attachment.attachment_name;
+            const localPath = path.join(pdfDir, fileName);
+            if (fs.existsSync(localPath)) {
+                attachment.localPdfPath = `/local-pdfs/${fileName}`;
+                return attachment;
             }
-
-        } else if (filesInDir) { // Hanya log jika direktori terbaca tapi tidak ada attachment
-            console.log(`[PDF Check DB Attach /] Tender ${tender.judul || tender.id} tidak memiliki dbAttachments di DB.`);
-        }
-        
-        return tender; // Kembalikan tender yang sudah dimodifikasi
-    };
-    // ---------------------------------------------------------------
-
-    // --- Proses Setiap Tender untuk Menambahkan Attachments dari DB & Path Lokal ---
-    const processedTenders = [];
-    for (const tender of allRows) {
-        // Query attachments untuk tender ini
-        try {
-            const attachmentRows = await new Promise((resolve, reject) => {
-                db.all('SELECT attachment_id, attachment_name, attachment_url FROM attachments WHERE tender_id = ? ORDER BY attachment_order', 
-                       [tender.id], (attachErr, rows) => {
-                    if (attachErr) {
-                        console.error(`Error fetching attachments for tender ${tender.id}:`, attachErr.message);
-                        reject(attachErr);
-                    } else {
-                        resolve(rows);
-                    }
-                });
-            });
-            tender.dbAttachments = attachmentRows; // Simpan hasil query ke tender
-        } catch (attachQueryError) {
-            tender.dbAttachments = []; // Set array kosong jika query gagal
-        }
-        
-        // Proses untuk flag isExpired, isNew, dan localPdfPath
-        const tenderWithFlags = processTenders([tender])[0]; // processTenders menerima dan mengembalikan array
-        const tenderFinal = addLocalPdfPath(tenderWithFlags);
-        processedTenders.push(tenderFinal);
+            // Jika tidak ketemu, baru pakai normalisasi
+            const dbName = normalizeFilename(fileName);
+            const found = pdfFiles.find(file => normalizeFilename(file) === dbName);
+            attachment.localPdfPath = found ? `/local-pdfs/${found}` : null;
+            return attachment;
+        });
     }
-    // --- Akhir Pemrosesan per Tender ---
-    
-    // Gunakan data yang sudah diproses sepenuhnya (processedTenders)
-    const allRowsProcessed = processedTenders;
+    return tender;
+}
 
-    // Pisahkan data berdasarkan tipe tender (setelah diproses)
-    const prakualifikasiTenders = allRowsProcessed.filter(row => row.tipe_tender === 'Prakualifikasi');
-    const pelelanganTenders = allRowsProcessed.filter(row => row.tipe_tender === 'Pelelangan Umum');
+// Route untuk halaman utama
+app.get('/', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const keyword = req.query.keyword || null;
+        const status = req.query.status || null;
 
-    // Hitung total halaman untuk masing-masing tipe
-    const totalPagesPrak = Math.ceil(prakualifikasiTenders.length / itemsPerPage);
-    const totalPagesPel = Math.ceil(pelelanganTenders.length / itemsPerPage);
+        // Ambil data tender Prakualifikasi
+        const { tenders: prakualifikasiTenders, totalPages: totalPagesPrak } = await getTendersWithAttachments({
+            page,
+            limit: 6,
+            type: 'Prakualifikasi',
+            keyword
+        });
 
-    // Ambil data untuk halaman saat ini
-    const paginatedPrakTenders = prakualifikasiTenders.slice(startIndex, startIndex + itemsPerPage);
-    const paginatedPelTenders = pelelanganTenders.slice(startIndex, startIndex + itemsPerPage);
+        // Ambil data tender Pelelangan Umum
+        const { tenders: pelelanganTenders, totalPages: totalPagesPelelangan } = await getTendersWithAttachments({
+            page,
+            limit: 6,
+            type: 'Pelelangan Umum',
+            keyword
+        });
 
-    // Data yang akan dikirim ke view, termasuk parameter pencarian
-    const viewData = {
-      prakualifikasiTenders: paginatedPrakTenders,
-      pelelanganTenders: paginatedPelTenders,
-      currentPage: currentPage,
-      totalPagesPrak: totalPagesPrak,
-      totalPagesPel: totalPagesPel,
-      // Parameter pencarian untuk disimpan di form
-      keyword: keyword,
-      type: type,
-      status: status,
-      totalResultsPrak: prakualifikasiTenders.length,
-      totalResultsPel: pelelanganTenders.length
-    };
-
-    // Debug: Log data sebelum render
-    console.log(`Pencarian dengan keyword: '${keyword}', type: '${type}', status: '${status}' menghasilkan ${prakualifikasiTenders.length + pelelanganTenders.length} tender`);
-
-    // Render template dengan data yang sudah dipaginasi dan info pagination
-    res.render('tenders', viewData);
-  });
-});
-
-// Route untuk Dashboard
-app.get('/dashboard', (req, res) => {
-    const db = getDb();
-    const sql = 'SELECT id, judul, createdAt, tipe_tender, batasWaktu, attachmentName FROM procurement_list ORDER BY createdAt DESC';
-
-    db.all(sql, [], (err, allRows) => {
-        // Log 1: Cek Error Database
-        if (err) {
-            console.error("!!! Error fetching data for dashboard:", err.message);
-            res.status(500).send("Error mengambil data untuk dashboard");
-            return;
-        }
-        // Log 2: Cek Jumlah Data Mentah
-        console.log(`>>> Jumlah baris data mentah dari DB: ${allRows ? allRows.length : 'null atau undefined'}`);
-        if (!allRows || allRows.length === 0) {
-           console.log(">>> Tidak ada data di database untuk diproses.");
-           // Tetap lanjutkan untuk merender dashboard kosong
-        }
-
-        // Fungsi bantu untuk parsing tanggal "DD Mon YYYY" ke "YYYY-MM-DD"
-        function parseDateString(dateStr) {
-            if (!dateStr) return null;
-            const parts = dateStr.split(' ');
-            if (parts.length !== 3) return null;
-            const day = parts[0].padStart(2, '0');
-            const monthMap = {
-                'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
-                'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+        // Fungsi filter status di JS
+        function isExpired(batasWaktu) {
+            if (!batasWaktu) return false;
+            const parts = batasWaktu.split(' ');
+            const months = {
+                Jan: '01', Januari: '01',
+                Feb: '02', Februari: '02',
+                Mar: '03', Maret: '03',
+                Apr: '04', April: '04',
+                May: '05', Mei: '05',
+                Jun: '06', Juni: '06',
+                Jul: '07', Juli: '07',
+                Aug: '08', Agustus: '08', Agu: '08',
+                Sep: '09', September: '09',
+                Oct: '10', Oktober: '10', Okt: '10',
+                Nov: '11', November: '11',
+                Dec: '12', Desember: '12', Des: '12'
             };
-            const month = monthMap[parts[1]];
-            const year = parts[2];
-            if (!month || !year) return null;
-            return `${year}-${month}-${day}`;
-        }
-
-        // Buat data event untuk kalender
-        const rawCalendarEvents = allRows ? allRows.map(row => {
-            const deadlineDate = parseDateString(row.batasWaktu);
-            // Log 3: Cek Hasil Parsing Tanggal Per Baris (opsional, bisa sangat banyak)
-            // console.log(`   - Parsing '${row.batasWaktu}' -> ${deadlineDate}`); 
-            if (!deadlineDate) return null;
-            // Sertakan data tambahan di extendedProps
-            return {
-                title: `Deadline: ${row.judul.substring(0, 25)}...`, // Judul dipendekkan sedikit
-                start: deadlineDate,
-                extendedProps: {
-                    tenderId: row.id,
-                    fullTitle: row.judul,
-                    kkks: row.kkks,
-                    batasWaktu: row.batasWaktu,
-                    tipeTender: row.tipe_tender
-                }
-            };
-        }) : [];
-        
-        // Log 4: Cek Event Mentah Sebelum Filter
-        console.log(`>>> Event mentah sebelum filter: ${rawCalendarEvents.length} item`);
-        
-        const calendarEvents = rawCalendarEvents.filter(event => event !== null);
-        
-        // Log 5: Cek Event Setelah Filter
-        console.log(`>>> Event setelah filter (valid): ${calendarEvents.length} item`);
-
-        // --- Modifikasi Data Tender untuk Menyertakan Path PDF Lokal (Gunakan sanitizeFilename) --- 
-        const addLocalPdfPath = (tender) => {
-            // Gunakan sanitizeFilename dari helpers
-            const pdfFilename = sanitizeFilename(tender.attachmentName);
-            
-            if (pdfFilename) {
-                // --- Logika Pengecekan File Baru ---
-                 try {
-                    const filesInDir = fs.readdirSync(localPdfDir);
-                    const fileExists = filesInDir.includes(pdfFilename);
-                    console.log(`[PDF Check Dir Dashboard] Mengecek file: ${pdfFilename} di ${localPdfDir}. Hasil readdirSync.includes: ${fileExists}`);
-                    if (fileExists) {
-                        const potentialPath = path.join(localPdfDir, pdfFilename);
-                        return { ...tender, localPdfPath: `/local-pdfs/${encodeURIComponent(pdfFilename)}` };
-                    }
-                } catch (readdirError) {
-                    console.error(`[PDF Check Dir Dashboard] Error membaca direktori ${localPdfDir}:`, readdirError);
-                }
-                // ----------------------------------
+            if (parts.length === 3 && months[parts[1]]) {
+                const dateStr = `${parts[2]}-${months[parts[1]]}-${parts[0].padStart(2, '0')}`;
+                return new Date(dateStr) < new Date();
             }
-            // Fallback (jika perlu)
-            // const fallbackFilename = `attachment_${tender.id}.pdf`; ...
+            return false;
+        }
 
-            console.log(`[PDF Check Dir Dashboard] File TIDAK DITEMUKAN untuk attachmentName: ${tender.attachmentName} (sanitized: ${pdfFilename})`);
+        let prakualifikasiTendersFiltered = prakualifikasiTenders;
+        let pelelanganTendersFiltered = pelelanganTenders;
+        if (status === 'active') {
+            prakualifikasiTendersFiltered = prakualifikasiTenders.filter(t => !isExpired(t.batasWaktu));
+            pelelanganTendersFiltered = pelelanganTenders.filter(t => !isExpired(t.batasWaktu));
+        } else if (status === 'expired') {
+            prakualifikasiTendersFiltered = prakualifikasiTenders.filter(t => isExpired(t.batasWaktu));
+            pelelanganTendersFiltered = pelelanganTenders.filter(t => isExpired(t.batasWaktu));
+        }
+
+        // Proses tender
+        const processedPrakualifikasiTenders = prakualifikasiTendersFiltered.map(tender => {
+            tender = addLocalPdfPath(tender);
+            tender.isNew = checkIsNew(tender.createdAt);
+            tender.isExpired = checkIsExpired(tender.batasWaktu);
             return tender;
-        };
-        // -------------------------------------------------------------------------
+        });
+        const processedPelelanganTenders = pelelanganTendersFiltered.map(tender => {
+            tender = addLocalPdfPath(tender);
+            tender.isNew = checkIsNew(tender.createdAt);
+            tender.isExpired = checkIsExpired(tender.batasWaktu);
+            return tender;
+        });
 
-        // Proses semua data untuk statistik dan ambil 5 terbaru yang sudah diproses
-         const allRowsProcessedDashboard = allRows ? allRows.map(addLocalPdfPath) : [];
-        const latestTendersProcessed = allRowsProcessedDashboard.slice(0, 5);
-        // --- Akhir Modifikasi Data Tender untuk Dashboard ---
-
-        // Hitung statistik
-        const totalTenders = allRows ? allRows.length : 0;
-        const totalPrakualifikasi = allRows ? allRows.filter(row => row.tipe_tender === 'Prakualifikasi').length : 0;
-        const totalPelelangan = allRows ? allRows.filter(row => row.tipe_tender === 'Pelelangan Umum').length : 0;
-
-        // Data yang akan dikirim ke view dashboard
-        const dashboardData = {
-            totalTenders: totalTenders,
-            totalPrakualifikasi: totalPrakualifikasi,
-            totalPelelangan: totalPelelangan,
-            latestTenders: latestTendersProcessed, 
-            // Kirim event yang sudah difilter
-            calendarEvents: calendarEvents 
-        };
-
-        // Log 6: Cek Data Final Sebelum Render
-        console.log(">>> Data final dikirim ke view dashboard:", dashboardData);
-        res.render('dashboard', dashboardData); 
-    });
+        // Render halaman dengan data yang benar
+        res.render('tenders', {
+            prakualifikasiTenders: processedPrakualifikasiTenders,
+            pelelanganTenders: processedPelelanganTenders,
+            currentPage: page,
+            totalPagesPrak,
+            totalPagesPelelangan,
+            totalPagesPel: totalPagesPelelangan,
+            keyword,
+            status,
+            totalResultsPrak: prakualifikasiTendersFiltered.length,
+            totalResultsPel: pelelanganTendersFiltered.length
+        });
+    } catch (error) {
+        console.error('Error fetching tenders:', error);
+        res.status(500).send('Internal Server Error');
+    }
 });
 
-// Jalankan server
-const server = app.listen(port, () => {
+// Route untuk dashboard
+app.get('/dashboard', async (req, res) => {
+    try {
+        // Ambil statistik dan data terbaru
+        const { tenders: latestTenders } = await getTendersWithAttachments({
+            limit: 5
+        });
+
+        // Proses tender terbaru
+        const processedLatestTenders = latestTenders.map(tender => {
+            tender.isNew = checkIsNew(tender.createdAt);
+            tender.isExpired = checkIsExpired(tender.batasWaktu);
+            return tender;
+        });
+
+        // Ambil semua tender untuk kalender dan statistik
+        const { tenders: allTenders } = await getTendersWithAttachments({
+            limit: 1000
+        });
+
+        // Hitung total
+        const totalTenders = allTenders.length;
+        const totalPrakualifikasi = allTenders.filter(t => t.tipe_tender === 'Prakualifikasi').length;
+        const totalPelelangan = allTenders.filter(t => t.tipe_tender === 'Pelelangan Umum').length;
+
+        // Format data untuk kalender
+        const calendarEvents = allTenders
+            .filter(tender => tender.batasWaktu) // hanya yang punya deadline
+            .map(tender => {
+                // Konversi "30 Apr 2025" atau "02 Mei 2025" ke "2025-04-30" atau "2025-05-02"
+                const parts = tender.batasWaktu.split(' ');
+                const months = {
+                    Jan: '01', Januari: '01',
+                    Feb: '02', Februari: '02',
+                    Mar: '03', Maret: '03',
+                    Apr: '04', April: '04',
+                    May: '05', Mei: '05',
+                    Jun: '06', Juni: '06',
+                    Jul: '07', Juli: '07',
+                    Aug: '08', Agustus: '08', Agu: '08',
+                    Sep: '09', September: '09',
+                    Oct: '10', Oktober: '10', Okt: '10',
+                    Nov: '11', November: '11',
+                    Dec: '12', Desember: '12', Des: '12'
+                };
+                let dateStr = '';
+                if (parts.length === 3 && months[parts[1]]) {
+                    dateStr = `${parts[2]}-${months[parts[1]]}-${parts[0].padStart(2, '0')}`;
+                }
+                return {
+                    title: `Deadline: ${tender.judul}`,
+                    start: dateStr
+                };
+            })
+            .filter(event => event.start); // hanya event dengan tanggal valid
+
+        // Render dashboard
+        res.render('dashboard', {
+            latestTenders: processedLatestTenders,
+            calendarEvents,
+            totalTenders,
+            totalPrakualifikasi,
+            totalPelelangan
+        });
+    } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+// Start server
+app.listen(port, () => {
   console.log(`Server berjalan di http://localhost:${port}`);
-  // Inisialisasi DB saat server start
-  getDb();
-});
-
-// Menangani penutupan server dengan baik
-process.on('SIGINT', () => {
-  console.log('\nMenerima SIGINT. Menutup server dan koneksi database...');
-  server.close(() => {
-    console.log('Server ditutup.');
-    closeDb();
-    process.exit(0);
-  });
 }); 

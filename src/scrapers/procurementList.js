@@ -35,7 +35,8 @@ function extractProcurementFromHtml($) {
       const dateText = cardBody.find('small.card-subtitle').text();
       const dateMatch = dateText.match(/Tayang hingga\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i);
       if (dateMatch && dateMatch[1]) {
-        tanggal = dateMatch[1].trim();
+        const today = new Date();
+        tanggal = today.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
         batasWaktu = dateMatch[1].trim();
       }
 

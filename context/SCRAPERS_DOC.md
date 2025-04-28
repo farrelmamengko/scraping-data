@@ -8,7 +8,7 @@ Dokumen ini menjelaskan detail teknis dari dua scraper utama yang digunakan dala
 *   **Tujuan**: Mengambil data Undangan Prakualifikasi.
 *   **Sumber**: Halaman web statis `/procurement` di situs CIVD SKK Migas, yang menampilkan tender dalam bentuk kartu.
 *   **Metode Scraping**: 
-    *   **Mengambil ID yang Ada**: Sebelum memulai, scraper memanggil `getExistingTenderIds` dari `database.js` untuk mendapatkan Set ID tender yang sudah ada di database.
+    *   **Mengambil ID yang Ada**: Sebelum memulai, scraper memanggil `getExistingTenderIds` dari `database.js` untuk mendapatkan Set ID tender yang sudah ada di database PostgreSQL.
     *   Menggunakan `axios` untuk mengirim request GET ke URL endpoint AJAX (`/ajax/search/tnd.jwebs?type=1&d-1789-p=...`).
     *   Melakukan iterasi request GET untuk setiap nomor halaman (`d-1789-p=1`, `d-1789-p=2`, dst.) hingga tidak ada data *baru* lagi yang ditemukan dan tidak ada halaman berikutnya, atau batas maksimum halaman tercapai.
     *   Menggunakan `cheerio` untuk mem-parsing konten HTML dari setiap halaman.
@@ -34,7 +34,7 @@ Dokumen ini menjelaskan detail teknis dari dua scraper utama yang digunakan dala
 *   **Tujuan**: Mengambil data Pelelangan Umum.
 *   **Sumber**: Endpoint AJAX internal `https://civd.skkmigas.go.id/ajax/search/tnd.jwebs`.
 *   **Metode Scraping**: 
-    *   **Mengambil ID yang Ada**: Sebelum memulai, scraper memanggil `getExistingTenderIds` dari `database.js` untuk mendapatkan Set ID tender yang sudah ada di database.
+    *   **Mengambil ID yang Ada**: Sebelum memulai, scraper memanggil `getExistingTenderIds` dari `database.js` untuk mendapatkan Set ID tender yang sudah ada di database PostgreSQL.
     *   Menggunakan `axios` untuk mengirim request `POST` tunggal ke endpoint AJAX (`/ajax/search/tnd.jwebs`). Endpoint ini menangani paginasi secara internal berdasarkan parameter request, namun scraper saat ini melakukan iterasi halaman dengan parameter berbeda (`d-1789-p=X` untuk type 1, `d-4486-p=X` untuk type 2 jika AJAX mendukungnya, atau logika POST tunggal seperti sekarang). *Catatan: Logika saat ini untuk pelelangan hanya melakukan satu POST dan mengandalkan response AJAX untuk semua data, lalu memfilter data baru.*
     *   Mengirimkan data form (`application/x-www-form-urlencoded`) dengan parameter yang sesuai (`type=2`, `keyword=''`).
     *   Memasukkan header `X-Requested-With: XMLHttpRequest` untuk meniru request AJAX.
@@ -79,6 +79,6 @@ Dokumen ini menjelaskan detail teknis dari dua scraper utama yang digunakan dala
 
 ## 4. Utilitas Terkait
 
-*   **`src/utils/database.js`**: Menyediakan fungsi (`getDb`, `closeDb`, `insertProcurementData`, `getExistingTenderIds`, `initializeDb`) untuk berinteraksi dengan database SQLite. `initializeDb` sekarang membuat tabel `procurement_list` (dengan kolom baru) dan tabel `attachments`. `insertProcurementData` menangani penyimpanan ke kedua tabel menggunakan transaksi.
+*   **`src/utils/database.js`**: Menyediakan fungsi (`getDb`, `closeDb`, `insertProcurementData`, `getExistingTenderIds`, `initializeDb`) untuk berinteraksi dengan database PostgreSQL. `initializeDb` sekarang membuat tabel `procurement_list` (dengan kolom baru) dan tabel `attachments`. `insertProcurementData` menangani penyimpanan ke kedua tabel menggunakan transaksi.
 *   **`src/utils/helpers.js`**: Menyediakan fungsi `removeDuplicates` dan `sanitizeFilename`.
 *   **`src/download pdf/`**: Direktori tempat file PDF yang berhasil diunduh oleh `downloadPDFsPlaywright.js` disimpan. 

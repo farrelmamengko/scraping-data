@@ -4,7 +4,7 @@ const fs = require('fs');
 const { sanitizeFilename } = require('../utils/helpers'); // Import dari helpers
 
 // Direktori tujuan unduhan
-const downloadPath = path.join(__dirname, '..', 'download pdf');
+const downloadPath = path.resolve(__dirname, '../../downloaded_pdfs');
 
 // Pastikan direktori unduhan ada
 if (!fs.existsSync(downloadPath)) {
