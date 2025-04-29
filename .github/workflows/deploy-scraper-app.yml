@@ -220,48 +220,26 @@ jobs:
           username: ${{ secrets.NAS_USERNAME }}
           password: ${{ secrets.NAS_PASSWORD }}
           port: ${{ secrets.NAS_PORT }}
-          script_stop: true
+          request_pty: true
           script: |
             cd /volume1/docker/skk-tender-staging
-            
-            # Set default Docker command
-            docker_cmd="/usr/local/bin/docker"
-            
-            # Determine compose command
-            if $docker_cmd compose version &> /dev/null; then
-              compose_cmd="$docker_cmd compose"
-            else
-              for cmd in "/usr/local/bin/docker-compose" "/volume1/@appstore/Docker/usr/bin/docker-compose" "/usr/bin/docker-compose"; do
-                if [ -x "$cmd" ]; then
-                  compose_cmd="$cmd"
-                  break
-                fi
-              done
-            fi
-            
-            # Check if containers are running
-            if ! $compose_cmd ps | grep -q "Up"; then
-              echo "Container is not running!"
-              $compose_cmd ps
-              exit 1
-            fi
-            
-            # Check container logs
-            echo "Container logs:"
-            $docker_cmd logs --tail 20 skk_tender_app
-            
-            # Check application health
-            echo "Checking application health..."
+            # Test container status via sudo docker-compose
+            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker-compose ps | tee /dev/stderr | grep -q "Up" || {
+              echo "Container is not running!";
+              echo "Full ps output:";
+              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker-compose ps;
+              exit 1;
+            }
+            # Show recent container logs via sudo docker logs
+            echo "Recent logs:";
+            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker logs --tail 20 skk_tender_app
+            # Health check
             for i in {1..15}; do
               if curl -s http://localhost:3002/ > /dev/null; then
-                echo "Application is up and running!"
-                exit 0
-              fi
-              echo "Waiting for application to be ready... (attempt $i/15)"
-              sleep 10
-            done
-            
-            # Show detailed logs if health check failed
-            echo "Application failed to start properly"
-            $docker_cmd logs skk_tender_app
+                echo "Application is up and running!"; exit 0; fi
+              echo "Waiting for application to be ready... (attempt $i/15)";
+              sleep 10;
+            done;
+            echo "Application failed to start properly";
+            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker logs skk_tender_app;
             exit 1 
