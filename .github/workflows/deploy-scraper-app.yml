@@ -207,9 +207,22 @@ jobs:
             echo "Cleaning up old volumes..."
             $docker_cmd volume rm -f pdf_downloads postgres_data || true
             
-            # Jalankan container baru
+            # Jalankan container baru dengan logging detail
             echo "Starting new containers..."
-            $compose_cmd up -d --force-recreate
+            echo "===== DOCKER COMPOSE FILE ====="
+            cat docker-compose.yml
+            echo "==============================="
+            
+            # Jalankan docker-compose dengan output detail
+            $compose_cmd up -d --force-recreate --verbose
+            
+            # Jika gagal, cek error
+            if [ $? -ne 0 ]; then
+              echo "Error saat menjalankan docker-compose:"
+              cat docker-compose.yml
+              $compose_cmd config
+              $docker_cmd system info
+            fi
             
             # Verifikasi deployment
             echo "Verifying deployment..."
@@ -222,7 +235,7 @@ jobs:
             
             # Restart app container untuk memastikan koneksi ke database
             echo "Restart app container..."
-            $docker_cmd restart skk_tender_app
+            $docker_cmd restart skk_tender_app || echo "Container skk_tender_app tidak ada"
             
             # Bersihkan image lama
             echo "Cleaning up old images..."
@@ -230,6 +243,14 @@ jobs:
             
             # Logout dari Docker Hub
             $docker_cmd logout
+            
+            # Cek apakah volume sudah dibuat
+            echo "Checking Docker volumes..."
+            $docker_cmd volume ls
+            
+            # Cek disk space
+            echo "Checking disk space..."
+            df -h
             
             echo "Deployment completed"
 

@@ -3,22 +3,34 @@ version: '3.8'
 services:
   app:
     container_name: skk_tender_app
-    build: .
+    image: farrelmamengko/scraping-data:latest
     ports:
-      - "3000:3000"
-    volumes:
-      # Bind mount untuk database
-      - ./database.db:/app/database.db 
-      # Bind mount untuk PDF hasil download ke folder container
-      - ./downloaded_pdfs:/app/downloaded_pdfs
+      - "3002:3000"
     restart: unless-stopped
-    # environment:
-      # - NODE_ENV=production
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres123
+      - DB_NAME=skk_tender
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - ./downloaded_pdfs:/app/downloaded_pdfs
+      - pdf_downloads:/app/src/download\ pdf
 
   db:
     container_name: skk_tender_db
     image: postgres:14
-    restart: always
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres123
@@ -28,8 +40,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-# Definisikan named volume yang digunakan di atas
 volumes:
+  pdf_downloads:
   postgres_data:
 
 # Hapus definisi named volumes di bawah ini
