@@ -103,6 +103,7 @@ jobs:
                 - db
               volumes:
                 - ./data:/app/data
+                - ./downloaded_pdfs:/app/downloaded_pdfs
                 - pdf_downloads:/app/src/download\\ pdf
 
             db:
