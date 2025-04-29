@@ -166,6 +166,12 @@ jobs:
             # Masuk ke direktori target
             cd /volume1/docker/skk-tender-staging
             
+            # Persiapkan folder dan permission
+            echo "Mempersiapkan folder dan permission..."
+            mkdir -p ./data ./downloaded_pdfs
+            chmod -R 777 ./data ./downloaded_pdfs
+            ls -la
+            
             # Set Docker commands
             docker_cmd="/usr/local/bin/docker"
             
@@ -197,6 +203,10 @@ jobs:
             echo "Stopping existing containers..."
             $compose_cmd down
             
+            # Hapus volume lama jika ada untuk fresh start
+            echo "Cleaning up old volumes..."
+            $docker_cmd volume rm -f pdf_downloads postgres_data || true
+            
             # Jalankan container baru
             echo "Starting new containers..."
             $compose_cmd up -d --force-recreate
@@ -204,6 +214,15 @@ jobs:
             # Verifikasi deployment
             echo "Verifying deployment..."
             $compose_cmd ps
+            $docker_cmd ps
+            
+            # Tunggu database siap (15 detik)
+            echo "Menunggu database siap..."
+            sleep 15
+            
+            # Restart app container untuk memastikan koneksi ke database
+            echo "Restart app container..."
+            $docker_cmd restart skk_tender_app
             
             # Bersihkan image lama
             echo "Cleaning up old images..."
