@@ -223,17 +223,11 @@ jobs:
           request_pty: true
           script: |
             cd /volume1/docker/skk-tender-staging
-            # Determine compose command (plugin vs binary)
-            if sudo docker compose version &> /dev/null; then
-              COMPOSE_CMD="docker compose"
-            else
-              COMPOSE_CMD="docker-compose"
-            fi
-            # Test container status via sudo $COMPOSE_CMD
-            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $COMPOSE_CMD ps | tee /dev/stderr | grep -q "Up" || {
+            # Gunakan langsung docker compose (plugin) dan skip deteksi
+            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker compose ps | tee /dev/stderr | grep -q "Up" || {
               echo "Container is not running!";
               echo "Full ps output:";
-              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $COMPOSE_CMD ps;
+              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker compose ps;
               exit 1;
             }
             # Show recent container logs via sudo docker logs
