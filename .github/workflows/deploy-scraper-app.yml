@@ -132,9 +132,9 @@ jobs:
           port: ${{ secrets.NAS_PORT }}
           username: ${{ secrets.NAS_USERNAME }}
           password: ${{ secrets.NAS_PASSWORD }}
-        script: |
-          sudo chown -R ${{ secrets.NAS_USERNAME }}:root /volume1/docker/skk-tender-staging
-          sudo chmod -R 775 /volume1/docker/skk-tender-staging
+          script: |
+            sudo chown -R ${{ secrets.NAS_USERNAME }}:root /volume1/docker/skk-tender-staging
+            sudo chmod -R 775 /volume1/docker/skk-tender-staging
       
       - name: Upload docker-compose.yml to NAS
         uses: appleboy/scp-action@master
