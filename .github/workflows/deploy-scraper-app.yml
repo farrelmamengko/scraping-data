@@ -223,16 +223,18 @@ jobs:
           request_pty: true
           script: |
             cd /volume1/docker/skk-tender-staging
-            # Gunakan langsung docker compose (plugin) dan skip deteksi
-            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker compose ps | tee /dev/stderr | grep -q "Up" || {
+            # Gunakan path absolut ke binary docker
+            DOCKER_CMD="/usr/local/bin/docker"
+            echo "Cek status container dengan path absolut..."
+            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER_CMD compose ps | tee /dev/stderr | grep -q "Up" || {
               echo "Container is not running!";
               echo "Full ps output:";
-              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker compose ps;
+              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER_CMD compose ps;
               exit 1;
             }
             # Show recent container logs via sudo docker logs
             echo "Recent logs:";
-            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker logs --tail 20 skk_tender_app
+            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER_CMD logs --tail 20 skk_tender_app
             # Health check
             for i in {1..15}; do
               if curl -s http://localhost:3002/ > /dev/null; then
@@ -241,5 +243,5 @@ jobs:
               sleep 10;
             done;
             echo "Application failed to start properly";
-            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker logs skk_tender_app;
+            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER_CMD logs skk_tender_app;
             exit 1 
