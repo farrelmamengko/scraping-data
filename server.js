@@ -72,8 +72,8 @@ function addLocalPdfPath(tender) {
             return attachment;
         });
     }
-    return tender;
-}
+            return tender; 
+        }
 
 // Route untuk halaman utama
 app.get('/', async (req, res) => {
@@ -216,7 +216,7 @@ app.get('/dashboard', async (req, res) => {
                     dateStr = `${parts[2]}-${months[parts[1]]}-${parts[0].padStart(2, '0')}`;
                 }
                 return {
-                    title: `Deadline: ${tender.judul}`,
+            title: `Deadline: ${tender.judul}`,
                     start: dateStr
                 };
             })
