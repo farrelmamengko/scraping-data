@@ -1,3 +1,28 @@
+# Workflow CI/CD untuk Scraper Tender App
+#
+# Fungsi utama:
+# - Build & test aplikasi Node.js (Express + PostgreSQL) dan image Docker setiap push ke branch master
+# - Push image Docker ke DockerHub
+# - Deploy otomatis ke NAS (Synology/Server) menggunakan docker-compose
+# - Verifikasi deployment berjalan lancar
+#
+# Penjelasan job:
+# 1. build-and-test: Build image Docker, test, dan push ke DockerHub
+# 2. deploy-to-nas: Deploy image terbaru ke NAS, jalankan docker-compose up -d
+# 3. verify-deployment: Cek container sudah running dan aplikasi bisa diakses
+#
+# Environment variable penting:
+# - DOCKERHUB_USERNAME, DOCKERHUB_TOKEN: Untuk push/pull image Docker
+# - NAS_HOST, NAS_USERNAME, NAS_PASSWORD, NAS_PORT: Untuk akses SSH ke NAS
+#
+# Tips troubleshooting:
+# - Pastikan NAS sudah install Docker & docker-compose
+# - Cek log container jika aplikasi tidak jalan: docker logs skk_tender_app
+# - Pastikan port 3002 di NAS terbuka
+#
+# Alur singkat:
+# Push ke master → Build & push image → Deploy ke NAS → Verifikasi otomatis
+
 name: CI/CD Pipeline Scraper Tender App
 
 on:
@@ -76,52 +101,16 @@ jobs:
           
           cat docker-compose.yml
       
-      - name: Deploy to NAS
+      - name: Set permission folder target di NAS
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.NAS_HOST }}
-          username: ${{ secrets.NAS_USERNAME }}
-          password: ${{ secrets.NAS_PASSWORD }}
           port: ${{ secrets.NAS_PORT }}
-          script_stop: true
+          username: ${{ secrets.NAS_USERNAME }}
+          key: ${{ secrets.NAS_SSH_KEY }}
           script: |
-            echo "Starting deployment as user: $(whoami)"
-            echo "Current directory: $(pwd)"
-            
-            # Buat direktori jika belum ada
-            TARGET_DIR="/volume1/docker/skk-tender-staging"
-            mkdir -p $TARGET_DIR
-            cd $TARGET_DIR
-            if [ $? -ne 0 ]; then
-              echo "Failed to change directory"
-              exit 1
-            fi
-            
-            # Buat direktori data jika belum ada
-            mkdir -p data
-            
-            # Set default Docker commands
-            docker_cmd="/usr/local/bin/docker"
-            compose_cmd="/usr/local/bin/docker-compose"
-            
-            # Check if docker-compose exists, if not try alternatives
-            if [ ! -x "$compose_cmd" ]; then
-              for cmd in "/volume1/@appstore/Docker/usr/bin/docker-compose" "/usr/bin/docker-compose"; do
-                if [ -x "$cmd" ]; then
-                  compose_cmd="$cmd"
-                  echo "Found docker-compose at $compose_cmd"
-                  break
-                fi
-              done
-            fi
-            
-            # Check if we should use docker compose plugin instead
-            if ! $docker_cmd compose version &> /dev/null; then
-              echo "Using docker-compose standalone"
-            else
-              echo "Using docker compose plugin"
-              compose_cmd="$docker_cmd compose"
-            fi
+            sudo chown -R ${{ secrets.NAS_USERNAME }}:root /volume1/docker/skk-tender-staging
+            sudo chmod -R 775 /volume1/docker/skk-tender-staging
       
       - name: Upload docker-compose.yml to NAS
         uses: appleboy/scp-action@master
