@@ -223,17 +223,22 @@ jobs:
           request_pty: true
           script: |
             cd /volume1/docker/skk-tender-staging
-            # Test container status via sudo docker-compose
-            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker-compose ps | tee /dev/stderr | grep -q "Up" || {
+            # Deteksi perintah compose: plugin vs standalone
+            COMPOSE_CMD="docker-compose"
+            if sudo docker compose version &> /dev/null; then
+              COMPOSE_CMD="docker compose"
+            fi
+            # Test container status
+            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $COMPOSE_CMD ps | tee /dev/stderr | grep -q "Up" || {
               echo "Container is not running!";
               echo "Full ps output:";
-              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker-compose ps;
+              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $COMPOSE_CMD ps;
               exit 1;
             }
-            # Show recent container logs via sudo docker logs
+            # Tampilkan log container terbaru
             echo "Recent logs:";
             echo "${{ secrets.NAS_PASSWORD }}" | sudo -S docker logs --tail 20 skk_tender_app
-            # Health check
+            # Health check aplikasi
             for i in {1..15}; do
               if curl -s http://localhost:3002/ > /dev/null; then
                 echo "Application is up and running!"; exit 0; fi
