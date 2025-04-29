@@ -100,7 +100,8 @@ jobs:
                 - DB_PASSWORD=postgres123
                 - DB_NAME=skk_tender
               depends_on:
-                - db
+                db:
+                  condition: service_healthy
               volumes:
                 - ./data:/app/data
                 - ./downloaded_pdfs:/app/downloaded_pdfs
@@ -110,6 +111,11 @@ jobs:
               container_name: skk_tender_db
               image: postgres:14
               restart: unless-stopped
+              healthcheck:
+                test: ["CMD", "pg_isready", "-U", "postgres"]
+                interval: 5s
+                timeout: 5s
+                retries: 5
               environment:
                 POSTGRES_USER: postgres
                 POSTGRES_PASSWORD: postgres123
@@ -221,29 +227,40 @@ jobs:
           username: ${{ secrets.NAS_USERNAME }}
           password: ${{ secrets.NAS_PASSWORD }}
           port: ${{ secrets.NAS_PORT }}
-          request_pty: true
           script: |
             cd /volume1/docker/skk-tender-staging
             # Gunakan path absolut ke binary docker
             DOCKER="/usr/local/bin/docker"
             COMPOSE="/usr/local/bin/docker-compose"
-            echo "Cek status container dengan docker-compose..."
-            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $COMPOSE ps | tee /dev/stderr | grep -q "Up" || {
-              echo "Container is not running!";
-              echo "Full ps output:";
-              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $COMPOSE ps;
-              exit 1;
-            }
-            # Show recent container logs via sudo docker logs
-            echo "Recent logs:";
-            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER logs --tail 20 skk_tender_app
-            # Health check
-            for i in {1..15}; do
-              if curl -s http://localhost:3002/ > /dev/null; then
-                echo "Application is up and running!"; exit 0; fi
-              echo "Waiting for application to be ready... (attempt $i/15)";
-              sleep 10;
-            done;
-            echo "Application failed to start properly";
-            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER logs skk_tender_app;
-            exit 1 
+            
+            # Tunggu container siap (12 x 5 detik = 60 detik max)
+            echo "Menunggu container untuk siap..."
+            MAX_ATTEMPTS=12
+            ATTEMPTS=0
+            CONTAINER_RUNNING=""
+            
+            while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+              CONTAINER_RUNNING=$(echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER ps -f name=skk_tender_app -f status=running --format '{{.Names}}')
+              if [ ! -z "$CONTAINER_RUNNING" ]; then
+                echo "Container berhasil running!"
+                break
+              fi
+              echo "Container belum siap, mencoba lagi dalam 5 detik ($ATTEMPTS/$MAX_ATTEMPTS)..."
+              sleep 5
+              ATTEMPTS=$((ATTEMPTS+1))
+            done
+            
+            if [ -z "$CONTAINER_RUNNING" ]; then
+              echo "Container tidak berjalan setelah beberapa percobaan!"
+              echo "Docker logs skk_tender_app:"
+              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER logs skk_tender_app 2>&1 || echo "Tidak ada container skk_tender_app"
+              echo "Docker logs skk_tender_db:"
+              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER logs skk_tender_db 2>&1 || echo "Tidak ada container skk_tender_db"
+              echo "Docker ps output:"
+              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER ps -a
+              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $COMPOSE logs
+              exit 1
+            fi
+            
+            echo "Container berjalan sukses!"
+            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER logs --tail 20 skk_tender_app 
