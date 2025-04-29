@@ -223,16 +223,27 @@ jobs:
           request_pty: true
           script: |
             cd /volume1/docker/skk-tender-staging
-            # Deteksi perintah compose: plugin vs standalone
-            COMPOSE_CMD="docker-compose"
-            if sudo docker compose version &> /dev/null; then
-              COMPOSE_CMD="docker compose"
+            # Tentukan docker dan compose commands
+            docker_cmd="docker"
+            compose_cmd="docker-compose"
+            # Cek plugin 'docker compose'
+            if sudo $docker_cmd compose version &> /dev/null; then
+              compose_cmd="$docker_cmd compose"
+            else
+              # fallback ke binary
+              for alt in "/usr/local/bin/docker-compose" "/volume1/@appstore/Docker/usr/bin/docker-compose" "/usr/bin/docker-compose"; do
+                if sudo test -x "$alt"; then
+                  compose_cmd="$alt"
+                  break
+                fi
+              done
             fi
-            # Test container status
-            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $COMPOSE_CMD ps | tee /dev/stderr | grep -q "Up" || {
+            echo "Using compose command: $compose_cmd"
+            # Tes status container
+            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $compose_cmd ps | tee /dev/stderr | grep -q "Up" || {
               echo "Container is not running!";
               echo "Full ps output:";
-              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $COMPOSE_CMD ps;
+              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $compose_cmd ps;
               exit 1;
             }
             # Tampilkan log container terbaru
@@ -241,7 +252,9 @@ jobs:
             # Health check aplikasi
             for i in {1..15}; do
               if curl -s http://localhost:3002/ > /dev/null; then
-                echo "Application is up and running!"; exit 0; fi
+                echo "Application is up and running!";
+                exit 0;
+              fi
               echo "Waiting for application to be ready... (attempt $i/15)";
               sleep 10;
             done;
