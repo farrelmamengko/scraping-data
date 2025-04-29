@@ -221,6 +221,7 @@ jobs:
           password: ${{ secrets.NAS_PASSWORD }}
           port: ${{ secrets.NAS_PORT }}
           request_pty: true
+          command_timeout: 15m
         script: |
           cd /volume1/docker/skk-tender-staging
           
