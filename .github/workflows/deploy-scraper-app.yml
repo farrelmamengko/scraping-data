@@ -92,11 +92,35 @@ jobs:
               ports:
                 - "3002:3000"
               restart: unless-stopped
+              environment:
+                - NODE_ENV=production
+                - DB_HOST=db
+                - DB_PORT=5432
+                - DB_USER=postgres
+                - DB_PASSWORD=postgres123
+                - DB_NAME=skk_tender
+              depends_on:
+                - db
               volumes:
                 - ./data:/app/data
                 - pdf_downloads:/app/src/download\\ pdf
+
+            db:
+              container_name: skk_tender_db
+              image: postgres:14
+              restart: unless-stopped
+              environment:
+                POSTGRES_USER: postgres
+                POSTGRES_PASSWORD: postgres123
+                POSTGRES_DB: skk_tender
+              ports:
+                - "5433:5432"
+              volumes:
+                - postgres_data:/var/lib/postgresql/data
+
           volumes:
             pdf_downloads:
+            postgres_data:
           EOF
           
           cat docker-compose.yml
