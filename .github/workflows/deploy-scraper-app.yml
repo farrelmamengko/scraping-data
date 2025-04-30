@@ -187,78 +187,69 @@ jobs:
               done
             fi
             
+            # Stop dan remove container lama jika ada
+            echo "Stopping and removing old containers..."
+            $compose_cmd down || true
+            
+            # Hapus image lama
+            echo "Removing old images..."
+            $docker_cmd rmi ${{ env.DOCKER_IMAGE_NAME }}:latest || true
+            
             # Login ke Docker Hub
             echo "Logging in to Docker Hub..."
             echo "${{ secrets.DOCKERHUB_TOKEN }}" | $docker_cmd login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
             
             # Pull latest image
             echo "Pulling latest image..."
-            $docker_cmd pull ${{ env.DOCKER_IMAGE_NAME }}:latest  
+            $docker_cmd pull ${{ env.DOCKER_IMAGE_NAME }}:latest
             
-            # Tampilkan image yang dipull
-            echo "Verifying pulled images..."
-            $docker_cmd images | grep "${{ env.DOCKER_IMAGE_NAME }}"
+            # Start container dengan logging
+            echo "Starting containers..."
+            $compose_cmd up -d
             
-            # Stop dan hapus container yang ada
-            echo "Stopping existing containers..."
-            $compose_cmd down
+            # Tunggu beberapa detik
+            sleep 30
             
-            # Hapus volume lama jika ada untuk fresh start
-            echo "Cleaning up old volumes..."
-            $docker_cmd volume rm -f pdf_downloads postgres_data || true
+            # Cek status container
+            echo "Checking container status..."
+            $docker_cmd ps -a
             
-            # Jalankan container baru dengan logging detail
-            echo "Starting new containers..."
-            echo "===== DOCKER COMPOSE FILE ====="
-            cat docker-compose.yml
-            echo "==============================="
+            # Cek logs container
+            echo "Checking container logs..."
+            $docker_cmd logs skk_tender_app
+            $docker_cmd logs skk_tender_db
             
-            # Jalankan docker-compose dengan output detail
-            $compose_cmd up -d --force-recreate --verbose
-            
-            # Jika gagal, cek error
-            if [ $? -ne 0 ]; then
-              echo "Error saat menjalankan docker-compose:"
-              cat docker-compose.yml
-              $compose_cmd config
-              $docker_cmd system info
+            # Verifikasi container berjalan
+            echo "Verifying containers are running..."
+            if ! $docker_cmd ps | grep -q "skk_tender_app"; then
+              echo "Error: skk_tender_app container not running"
+              exit 1
             fi
             
-            # Verifikasi deployment
-            echo "Verifying deployment..."
-            $compose_cmd ps
-            $docker_cmd ps
+            if ! $docker_cmd ps | grep -q "skk_tender_db"; then
+              echo "Error: skk_tender_db container not running"
+              exit 1
+            fi
             
-            # Tunggu database siap (15 detik)
-            echo "Menunggu database siap..."
-            sleep 15
+            # Verifikasi health check database
+            echo "Waiting for database to be ready..."
+            for i in {1..30}; do
+              if $docker_cmd exec skk_tender_db pg_isready -U postgres; then
+                echo "Database is ready!"
+                break
+              fi
+              if [ $i -eq 30 ]; then
+                echo "Error: Database failed to become ready"
+                exit 1
+              fi
+              sleep 2
+            done
             
-            # Restart app container untuk memastikan koneksi ke database
-            echo "Restart app container..."
-            $docker_cmd restart skk_tender_app || echo "Container skk_tender_app tidak ada"
-            
-            # Bersihkan image lama
-            echo "Cleaning up old images..."
-            $docker_cmd image prune -f
-            
-            # Logout dari Docker Hub
-            $docker_cmd logout
-            
-            # Cek apakah volume sudah dibuat
-            echo "Checking Docker volumes..."
-            $docker_cmd volume ls
-            
-            # Cek disk space
-            echo "Checking disk space..."
-            df -h
-            
-            echo "Deployment completed"
+            echo "Deployment verification completed successfully!"
 
   verify-deployment:
     needs: deploy-to-nas
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
-    
     steps:
       - name: Verify Deployment
         uses: appleboy/ssh-action@master
@@ -269,38 +260,35 @@ jobs:
           port: ${{ secrets.NAS_PORT }}
           script: |
             cd /volume1/docker/skk-tender-staging
-            # Gunakan path absolut ke binary docker
-            DOCKER="/usr/local/bin/docker"
-            COMPOSE="/usr/local/bin/docker-compose"
             
-            # Tunggu container siap (12 x 5 detik = 60 detik max)
-            echo "Menunggu container untuk siap..."
-            MAX_ATTEMPTS=12
-            ATTEMPTS=0
-            CONTAINER_RUNNING=""
+            # Set Docker command
+            docker_cmd="/usr/local/bin/docker"
             
-            while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
-              CONTAINER_RUNNING=$(echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER ps -f name=skk_tender_app -f status=running --format '{{.Names}}')
-              if [ ! -z "$CONTAINER_RUNNING" ]; then
-                echo "Container berhasil running!"
-                break
-              fi
-              echo "Container belum siap, mencoba lagi dalam 5 detik ($ATTEMPTS/$MAX_ATTEMPTS)..."
-              sleep 5
-              ATTEMPTS=$((ATTEMPTS+1))
-            done
+            # Cek status container
+            echo "Current running containers:"
+            $docker_cmd ps
             
-            if [ -z "$CONTAINER_RUNNING" ]; then
-              echo "Container tidak berjalan setelah beberapa percobaan!"
-              echo "Docker logs skk_tender_app:"
-              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER logs skk_tender_app 2>&1 || echo "Tidak ada container skk_tender_app"
-              echo "Docker logs skk_tender_db:"
-              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER logs skk_tender_db 2>&1 || echo "Tidak ada container skk_tender_db"
-              echo "Docker ps output:"
-              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER ps -a
-              echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $COMPOSE logs
+            # Cek logs untuk error
+            echo "Container logs:"
+            $docker_cmd logs --tail 50 skk_tender_app
+            $docker_cmd logs --tail 50 skk_tender_db
+            
+            # Verifikasi aplikasi berjalan
+            if ! $docker_cmd ps | grep -q "skk_tender_app.*Up.*3002"; then
+              echo "Error: Application container not running properly"
               exit 1
             fi
             
-            echo "Container berjalan sukses!"
-            echo "${{ secrets.NAS_PASSWORD }}" | sudo -S $DOCKER logs --tail 20 skk_tender_app 
+            # Verifikasi database berjalan
+            if ! $docker_cmd ps | grep -q "skk_tender_db.*Up.*5434"; then
+              echo "Error: Database container not running properly"
+              exit 1
+            fi
+            
+            # Cek koneksi ke aplikasi
+            if ! curl -s -f http://localhost:3002 > /dev/null; then
+              echo "Error: Application not responding"
+              exit 1
+            fi
+            
+            echo "All verification checks passed successfully!" 

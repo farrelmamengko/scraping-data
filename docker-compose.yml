@@ -20,7 +20,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./downloaded_pdfs:/app/downloaded_pdfs
-      - pdf_downloads:/app/src/download\ pdf
+      - pdf_downloads:/app/src/download\ pdf 
 
   db:
     container_name: skk_tender_db

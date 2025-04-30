@@ -142,7 +142,6 @@ async function scrapeProcurementList() {
   console.log('[Procurement] Memulai scraping data...');
 
   try {
-    // Ambil ID tender yang sudah ada di database SEBELUM memulai loop
     const existingIdsSet = await getExistingTenderIds();
 
     const headers = {
@@ -157,49 +156,57 @@ async function scrapeProcurementList() {
     let currentPage = 1;
     let hasMoreData = true;
     const MAX_PAGES = 50;
+    const MAX_RETRIES = 3;
+    const DELAY = 5000; // 5 detik delay
 
     while (hasMoreData && currentPage <= MAX_PAGES) {
-      try {
-        console.log(`[Procurement] Mengambil data halaman ${currentPage}...`);
-        const response = await axios.get(
-          `${BASE_URL}/ajax/search/tnd.jwebs?type=1&d-1789-p=${currentPage}`,
-          { headers }
-        );
-        
-        const $ = cheerio.load(response.data);
-        const pageData = extractProcurementFromHtml($);
-        
-        // Filter pageData untuk hanya menyertakan data baru
-        const newData = pageData.filter(tender => !existingIdsSet.has(tender.id));
+      let retries = 0;
+      let success = false;
 
-        if (newData.length > 0) {
-          // Log jumlah data BARU yang ditemukan
-          console.log(`[Procurement] Ditemukan ${newData.length} data BARU di halaman ${currentPage} (dari total ${pageData.length} di halaman ini).`);
-          allData = allData.concat(newData); // Hanya tambahkan data baru ke allData
-          currentPage++;
-        } else {
-          console.log(`[Procurement] Tidak ada data BARU di halaman ${currentPage} (dari total ${pageData.length} di halaman ini). Mungkin akhir data baru atau halaman lama.`);
-          // Cek apakah masih ada tombol next (jika ada data lama di halaman berikutnya)
-          // Cek link pagination untuk 'next'
-          const nextPageLink = $('div.pagelinks a[title="Next"].uibutton');
-          if (nextPageLink.length === 0 || nextPageLink.hasClass('disable')) {
-              hasMoreData = false;
-              console.log(`[Procurement] Tombol 'Next' tidak ditemukan atau disabled di halaman ${currentPage}. Menghentikan scraping.`);
+      while (retries < MAX_RETRIES && !success) {
+        try {
+          console.log(`[Procurement] Mengambil data halaman ${currentPage} (percobaan ke-${retries + 1})...`);
+          
+          const response = await axios.get(
+            `${BASE_URL}/ajax/search/tnd.jwebs?type=1&d-1789-p=${currentPage}`,
+            { 
+              headers,
+              timeout: 30000 // 30 detik timeout
+            }
+          );
+          
+          const $ = cheerio.load(response.data);
+          const pageData = extractProcurementFromHtml($);
+          
+          // Filter pageData untuk hanya menyertakan data baru
+          const newData = pageData.filter(tender => !existingIdsSet.has(tender.id));
+
+          if (pageData.length > 0) {
+            console.log(`[Procurement] Ditemukan ${newData.length} data BARU di halaman ${currentPage} (dari total ${pageData.length} di halaman ini).`);
+            allData = allData.concat(newData);
+            success = true;
+            currentPage++;
           } else {
-              console.log(`[Procurement] Masih ada halaman berikutnya, lanjut mencari data baru...`);
-              currentPage++; // Tetap lanjut ke halaman berikutnya meskipun halaman ini kosong dari data baru
-          }
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 2500));
-        
-      } catch (error) {
-        if (error.response && error.response.status === 404) {
-             console.log(`[Procurement] Halaman ${currentPage} tidak ditemukan (404), menganggap akhir data.`);
-             hasMoreData = false;
-        } else {
-            console.error(`[Procurement] Error saat mengambil/memproses halaman ${currentPage}:`, error.message);
+            console.log(`[Procurement] Tidak ada data di halaman ${currentPage}. Menghentikan scraping.`);
             hasMoreData = false;
+            break;
+          }
+          
+          // Tunggu sebelum request berikutnya
+          await new Promise(resolve => setTimeout(resolve, DELAY));
+          
+        } catch (error) {
+          console.error(`[Procurement] Error pada halaman ${currentPage} (percobaan ke-${retries + 1}):`, error.message);
+          retries++;
+          
+          if (retries >= MAX_RETRIES) {
+            console.error(`[Procurement] Gagal setelah ${MAX_RETRIES} percobaan pada halaman ${currentPage}`);
+            // Jangan langsung berhenti, coba lanjut ke halaman berikutnya
+            currentPage++;
+          }
+          
+          // Tunggu lebih lama sebelum retry
+          await new Promise(resolve => setTimeout(resolve, DELAY * 2));
         }
       }
     }
