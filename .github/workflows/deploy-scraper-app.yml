@@ -86,12 +86,38 @@ jobs:
           cat > docker-compose.yml << EOF
           version: '3.8'
           services:
+            db:
+              container_name: skk_tender_db
+              image: postgres:14
+              restart: always
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U postgres"]
+                interval: 10s
+                timeout: 5s
+                retries: 5
+                start_period: 30s
+              environment:
+                POSTGRES_USER: postgres
+                POSTGRES_PASSWORD: postgres123
+                POSTGRES_DB: skk_tender
+                PGDATA: /var/lib/postgresql/data/pgdata
+              ports:
+                - "5434:5432"
+              volumes:
+                - postgres_data:/var/lib/postgresql/data
+              command: 
+                - "postgres"
+                - "-c"
+                - "max_connections=200"
+                - "-c"
+                - "shared_buffers=256MB"
+
             app:
               container_name: skk_tender_app
               image: ${{ env.DOCKER_IMAGE_NAME }}:latest
               ports:
                 - "3002:3000"
-              restart: unless-stopped
+              restart: always
               environment:
                 - NODE_ENV=production
                 - DB_HOST=db
@@ -107,27 +133,10 @@ jobs:
                 - ./downloaded_pdfs:/app/downloaded_pdfs
                 - pdf_downloads:/app/src/download\\ pdf
 
-            db:
-              container_name: skk_tender_db
-              image: postgres:14
-              restart: unless-stopped
-              healthcheck:
-                test: ["CMD", "pg_isready", "-U", "postgres"]
-                interval: 5s
-                timeout: 5s
-                retries: 5
-              environment:
-                POSTGRES_USER: postgres
-                POSTGRES_PASSWORD: postgres123
-                POSTGRES_DB: skk_tender
-              ports:
-                - "5434:5432"
-              volumes:
-                - postgres_data:/var/lib/postgresql/data
-
           volumes:
             pdf_downloads:
             postgres_data:
+              driver: local
           EOF
           
           cat docker-compose.yml
