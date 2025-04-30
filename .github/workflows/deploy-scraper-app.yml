@@ -105,6 +105,7 @@ jobs:
                 - "5434:5432"
               volumes:
                 - postgres_data:/var/lib/postgresql/data
+                - ./migrations:/docker-entrypoint-initdb.d
               command: 
                 - "postgres"
                 - "-c"
@@ -125,6 +126,8 @@ jobs:
                 - DB_USER=postgres
                 - DB_PASSWORD=postgres123
                 - DB_NAME=skk_tender
+                - WAIT_HOSTS=db:5432
+                - WAIT_TIMEOUT=300
               depends_on:
                 db:
                   condition: service_healthy
@@ -177,28 +180,54 @@ jobs:
             
             # Persiapkan folder dan permission
             echo "Mempersiapkan folder dan permission..."
-            mkdir -p ./data ./downloaded_pdfs
-            chmod -R 777 ./data ./downloaded_pdfs
-            ls -la
+            mkdir -p ./data ./downloaded_pdfs ./migrations
+            chmod -R 777 ./data ./downloaded_pdfs ./migrations
+            
+            # Buat file migrasi
+            cat > migrations/init.sql << 'EOF'
+            -- Create procurement_list table
+            CREATE TABLE IF NOT EXISTS procurement_list (
+                id VARCHAR(255) PRIMARY KEY,
+                judul TEXT NOT NULL,
+                deskripsi TEXT,
+                tanggal DATE,
+                kkks TEXT,
+                golonganUsaha TEXT,
+                jenisPengadaan TEXT,
+                bidangUsaha TEXT,
+                batasWaktu TEXT,
+                url TEXT,
+                tipe_tender TEXT,
+                createdAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Create attachments table
+            CREATE TABLE IF NOT EXISTS attachments (
+                id SERIAL PRIMARY KEY,
+                tender_id VARCHAR(255) REFERENCES procurement_list(id),
+                attachment_id VARCHAR(255),
+                attachment_name TEXT,
+                attachment_url TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Create indexes
+            CREATE INDEX IF NOT EXISTS idx_procurement_tipe ON procurement_list(tipe_tender);
+            CREATE INDEX IF NOT EXISTS idx_procurement_date ON procurement_list(tanggal);
+            CREATE INDEX IF NOT EXISTS idx_attachments_tender ON attachments(tender_id);
+            EOF
+            
+            # Set permission file migrasi
+            chmod 644 migrations/init.sql
             
             # Set Docker commands
             docker_cmd="/usr/local/bin/docker"
             
-            # Tentukan compose command
-            if $docker_cmd compose version &> /dev/null; then
-              compose_cmd="$docker_cmd compose"
-            else
-              for cmd in "/usr/local/bin/docker-compose" "/volume1/@appstore/Docker/usr/bin/docker-compose" "/usr/bin/docker-compose"; do
-                if [ -x "$cmd" ]; then
-                  compose_cmd="$cmd"
-                  break
-                fi
-              done
-            fi
-            
-            # Stop dan remove container lama jika ada
+            # Stop dan remove container lama
             echo "Stopping and removing old containers..."
-            $compose_cmd down || true
+            $docker_cmd compose down -v || true
             
             # Hapus image lama
             echo "Removing old images..."
@@ -214,33 +243,9 @@ jobs:
             
             # Start container dengan logging
             echo "Starting containers..."
-            $compose_cmd up -d
+            $docker_cmd compose up -d
             
-            # Tunggu beberapa detik
-            sleep 30
-            
-            # Cek status container
-            echo "Checking container status..."
-            $docker_cmd ps -a
-            
-            # Cek logs container
-            echo "Checking container logs..."
-            $docker_cmd logs skk_tender_app
-            $docker_cmd logs skk_tender_db
-            
-            # Verifikasi container berjalan
-            echo "Verifying containers are running..."
-            if ! $docker_cmd ps | grep -q "skk_tender_app"; then
-              echo "Error: skk_tender_app container not running"
-              exit 1
-            fi
-            
-            if ! $docker_cmd ps | grep -q "skk_tender_db"; then
-              echo "Error: skk_tender_db container not running"
-              exit 1
-            fi
-            
-            # Verifikasi health check database
+            # Tunggu database siap
             echo "Waiting for database to be ready..."
             for i in {1..30}; do
               if $docker_cmd exec skk_tender_db pg_isready -U postgres; then
@@ -254,7 +259,14 @@ jobs:
               sleep 2
             done
             
-            echo "Deployment verification completed successfully!"
+            # Verifikasi migrasi berhasil
+            echo "Verifying database migration..."
+            if ! $docker_cmd exec skk_tender_db psql -U postgres -d skk_tender -c "\dt" | grep -q "procurement_list"; then
+              echo "Error: Database migration failed - tables not created"
+              exit 1
+            fi
+            
+            echo "Deployment completed successfully!"
 
   verify-deployment:
     needs: deploy-to-nas
