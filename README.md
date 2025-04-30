@@ -270,3 +270,7 @@ Jika struktur website berubah, Anda dapat menyesuaikan selectors HTML di file-fi
 ## License
 
 ISC 
+
+
+
+God Bless
