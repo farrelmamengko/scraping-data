@@ -60,8 +60,9 @@ function extractProcurementFromHtml($) {
       const dateText = cardBody.find('small.card-subtitle').text();
       const dateMatch = dateText.match(/Tayang hingga\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i);
       if (dateMatch && dateMatch[1]) {
-        // Gunakan formatDate untuk tanggal dan batasWaktu
-        tanggal = formatDate(new Date()); // Tanggal hari ini dalam format YYYY-MM-DD
+        // Tanggal hari ini langsung format YYYY-MM-DD
+        const today = new Date();
+        tanggal = today.toISOString().slice(0, 10); // YYYY-MM-DD
         batasWaktu = formatDate(dateMatch[1].trim());
       }
 
