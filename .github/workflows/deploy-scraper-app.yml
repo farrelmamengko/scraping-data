@@ -151,6 +151,7 @@ jobs:
               volumes:
                 - ./data:/app/data
                 - ./downloaded_pdfs:/app/downloaded_pdfs
+                - ./migrations:/app/migrations
                 - pdf_downloads:/app/src/download\\ pdf
 
           volumes:
@@ -227,6 +228,57 @@ jobs:
             mkdir -p ./data ./downloaded_pdfs ./migrations
             chmod -R 777 ./data ./downloaded_pdfs ./migrations
             
+            # Buat file migrasi SQL
+            echo "Creating migration file..."
+            cat > ./migrations/init.sql << 'EOF'
+            -- Create procurement_list table if not exists
+            CREATE TABLE IF NOT EXISTS procurement_list (
+                id VARCHAR(255) PRIMARY KEY,
+                judul TEXT NOT NULL,
+                deskripsi TEXT,
+                tanggal DATE,
+                kkks TEXT,
+                golonganUsaha TEXT,
+                jenisPengadaan TEXT,
+                bidangUsaha TEXT,
+                batasWaktu TEXT,
+                url TEXT,
+                tipe_tender TEXT,
+                createdAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Create attachments table if not exists
+            CREATE TABLE IF NOT EXISTS attachments (
+                id SERIAL PRIMARY KEY,
+                tender_id VARCHAR(255) REFERENCES procurement_list(id),
+                attachment_id VARCHAR(255),
+                attachment_name TEXT,
+                attachment_url TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+
+            -- Create indexes if not exists
+            CREATE INDEX IF NOT EXISTS idx_procurement_tipe ON procurement_list(tipe_tender);
+            CREATE INDEX IF NOT EXISTS idx_procurement_date ON procurement_list(tanggal);
+            CREATE INDEX IF NOT EXISTS idx_attachments_tender ON attachments(tender_id);
+            EOF
+
+            # Set permission untuk file migrasi
+            chmod 644 ./migrations/init.sql
+            
+            # Verifikasi file migrasi
+            echo "Verifying migration file..."
+            if [ ! -f "./migrations/init.sql" ]; then
+                echo "Error: Migration file not created!"
+                exit 1
+            fi
+            
+            # Copy file migrasi ke container
+            echo "Copying migration file to app container..."
+            $docker_cmd cp ./migrations/init.sql skk_tender_app:/app/migrations/init.sql || true
+            
             # Login ke Docker Hub dengan retry
             echo "Logging in to Docker Hub..."
             retry_command "echo '${{ secrets.DOCKERHUB_TOKEN }}' | $docker_cmd login -u '${{ secrets.DOCKERHUB_USERNAME }}' --password-stdin"
@@ -277,6 +329,67 @@ jobs:
               sleep 5
             done
             
+            # Verifikasi file migrasi di container
+            echo "Verifying migration file in container..."
+            if ! $docker_cmd exec skk_tender_app ls /app/migrations/init.sql; then
+              echo "Error: Migration file not found in container"
+              exit 1
+            fi
+            
+            # Verifikasi tabel database
+            echo "Verifying database tables..."
+            if ! $docker_cmd exec skk_tender_db psql -U postgres -d skk_tender -c "\dt" | grep -q "procurement_list"; then
+              echo "Error: Database tables not created properly"
+              $docker_cmd logs skk_tender_db
+              exit 1
+            fi
+
+            # Verifikasi koneksi database dari aplikasi
+            echo "Verifying database connection from application..."
+            if ! $docker_cmd exec skk_tender_app node -e "
+              const { Pool } = require('pg');
+              const pool = new Pool({
+                host: 'db',
+                port: 5432,
+                user: 'postgres',
+                password: 'postgres123',
+                database: 'skk_tender'
+              });
+              pool.query('SELECT NOW()', (err, res) => {
+                if (err) {
+                  console.error('Database connection error:', err);
+                  process.exit(1);
+                }
+                console.log('Database connection successful');
+                pool.end();
+              });
+            "; then
+              echo "Error: Application cannot connect to database"
+              $docker_cmd logs skk_tender_app
+              exit 1
+            fi
+
+            # Verifikasi endpoint aplikasi
+            echo "Verifying application endpoints..."
+            for endpoint in "/" "/dashboard"; do
+              if ! curl -s -f "http://localhost:3002$endpoint" > /dev/null; then
+                echo "Error: Endpoint $endpoint not responding"
+                $docker_cmd logs skk_tender_app
+                exit 1
+              fi
+              echo "Endpoint $endpoint is responding correctly"
+            done
+
+            # Tampilkan status akhir
+            echo "=== Final Deployment Status ==="
+            echo "Application Container:"
+            $docker_cmd ps --filter "name=skk_tender_app" --format "{{.Status}}"
+            echo "Database Container:"
+            $docker_cmd ps --filter "name=skk_tender_db" --format "{{.Status}}"
+            echo "Database Tables:"
+            $docker_cmd exec skk_tender_db psql -U postgres -d skk_tender -c "\dt"
+            echo "=== End of Status ==="
+
             echo "Deployment completed successfully!"
 
   verify-deployment:
@@ -296,30 +409,54 @@ jobs:
             # Set Docker command
             docker_cmd="/usr/local/bin/docker"
             
-            # Cek status container
-            echo "Current running containers:"
-            $docker_cmd ps
+            # Fungsi untuk retry command
+            retry_command() {
+              local max_attempts=5
+              local delay=10
+              local attempt=1
+              
+              while true; do
+                echo "Attempt $attempt of $max_attempts: $1"
+                if eval "$1"; then
+                  return 0
+                fi
+                
+                attempt=$(( attempt + 1 ))
+                if (( attempt > max_attempts )); then
+                  echo "Failed after $max_attempts attempts"
+                  return 1
+                fi
+                
+                echo "Waiting $delay seconds before retry..."
+                sleep $delay
+              done
+            }
+            
+            # Cek status container dengan retry
+            echo "Verifying container status..."
+            retry_command "$docker_cmd ps --filter 'name=skk_tender_app' --format '{{.Status}}' | grep -q 'Up'"
+            retry_command "$docker_cmd ps --filter 'name=skk_tender_db' --format '{{.Status}}' | grep -q 'Up'"
             
             # Cek logs untuk error
-            echo "Container logs:"
+            echo "Checking container logs..."
             $docker_cmd logs --tail 50 skk_tender_app
             $docker_cmd logs --tail 50 skk_tender_db
             
-            # Verifikasi aplikasi berjalan
-            if ! $docker_cmd ps | grep -q "skk_tender_app.*Up.*3002"; then
-              echo "Error: Application container not running properly"
-              exit 1
-            fi
+            # Verifikasi endpoint aplikasi dengan retry
+            echo "Verifying application endpoints..."
+            for endpoint in "/" "/dashboard"; do
+              retry_command "curl -s -f 'http://localhost:3002$endpoint' > /dev/null"
+              echo "Endpoint $endpoint is responding correctly"
+            done
             
-            # Verifikasi database berjalan
-            if ! $docker_cmd ps | grep -q "skk_tender_db.*Up.*5434"; then
-              echo "Error: Database container not running properly"
-              exit 1
-            fi
+            # Verifikasi koneksi database
+            echo "Verifying database connection..."
+            retry_command "$docker_cmd exec skk_tender_db pg_isready -U postgres"
             
-            # Cek koneksi ke aplikasi
-            if ! curl -s -f http://localhost:3002 > /dev/null; then
-              echo "Error: Application not responding"
+            # Verifikasi struktur database
+            echo "Verifying database structure..."
+            if ! $docker_cmd exec skk_tender_db psql -U postgres -d skk_tender -c "\dt" | grep -q "procurement_list"; then
+              echo "Error: Required tables not found in database"
               exit 1
             fi
             
@@ -334,15 +471,33 @@ jobs:
           password: ${{ secrets.NAS_PASSWORD }}
           port: ${{ secrets.NAS_PORT }}
           script: |
-            echo "=== Docker Info ==="
+            echo "=== Detailed Debug Information ==="
+            
+            echo "Docker Info:"
             docker info
             
-            echo "=== Docker Version ==="
+            echo "Docker Version:"
             docker version
             
-            echo "=== Network Info ==="
+            echo "Network Info:"
             curl -v https://registry-1.docker.io/v2/
             
-            echo "=== Container Logs ==="
-            docker logs skk_tender_app || true
-            docker logs skk_tender_db || true 
+            echo "Container Status:"
+            docker ps -a
+            
+            echo "Application Logs:"
+            docker logs skk_tender_app
+            
+            echo "Database Logs:"
+            docker logs skk_tender_db
+            
+            echo "Database Connection Test:"
+            docker exec skk_tender_db pg_isready -U postgres
+            
+            echo "Database Tables:"
+            docker exec skk_tender_db psql -U postgres -d skk_tender -c "\dt"
+            
+            echo "File System Check:"
+            ls -la /volume1/docker/skk-tender-staging/migrations/
+            
+            echo "=== End of Debug Information ===" 
