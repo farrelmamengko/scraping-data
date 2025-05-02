@@ -193,34 +193,11 @@ app.get('/dashboard', async (req, res) => {
 
         // Format data untuk kalender
         const calendarEvents = allTenders
-            .filter(tender => tender.batasWaktu) // hanya yang punya deadline
-            .map(tender => {
-                // Konversi "30 Apr 2025" atau "02 Mei 2025" ke "2025-04-30" atau "2025-05-02"
-                const parts = tender.batasWaktu.split(' ');
-                const months = {
-                    Jan: '01', Januari: '01',
-                    Feb: '02', Februari: '02',
-                    Mar: '03', Maret: '03',
-                    Apr: '04', April: '04',
-                    May: '05', Mei: '05',
-                    Jun: '06', Juni: '06',
-                    Jul: '07', Juli: '07',
-                    Aug: '08', Agustus: '08', Agu: '08',
-                    Sep: '09', September: '09',
-                    Oct: '10', Oktober: '10', Okt: '10',
-                    Nov: '11', November: '11',
-                    Dec: '12', Desember: '12', Des: '12'
-                };
-                let dateStr = '';
-                if (parts.length === 3 && months[parts[1]]) {
-                    dateStr = `${parts[2]}-${months[parts[1]]}-${parts[0].padStart(2, '0')}`;
-                }
-                return {
-            title: `Deadline: ${tender.judul}`,
-                    start: dateStr
-                };
-            })
-            .filter(event => event.start); // hanya event dengan tanggal valid
+            .filter(tender => tender.batasWaktu && /^\d{4}-\d{2}-\d{2}$/.test(tender.batasWaktu)) // hanya yang punya deadline valid
+            .map(tender => ({
+                title: `Deadline: ${tender.judul}`,
+                start: tender.batasWaktu
+            }));
 
         // Render dashboard
         res.render('dashboard', {
