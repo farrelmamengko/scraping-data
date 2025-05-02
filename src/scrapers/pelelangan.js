@@ -63,8 +63,8 @@ function extractPelelanganFromHtml($) {
       const dateText = cardBody.find('small.card-subtitle').text();
       const dateMatch = dateText.match(/Tayang hingga\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i);
       if (dateMatch && dateMatch[1]) {
-        tanggal = dateMatch[1].trim();
-        batasWaktu = dateMatch[1].trim();
+        tanggal = formatDate(dateMatch[1].trim());
+        batasWaktu = formatDate(dateMatch[1].trim());
       }
 
       // --- Ambil Deskripsi --- 
@@ -264,6 +264,23 @@ async function scrapePelelangan() {
 
 // Hapus fungsi scrapePelelanganWithPuppeteer karena tidak dipakai lagi
 // async function scrapePelelanganWithPuppeteer() { ... }
+
+// Tambahkan fungsi formatDate di sini
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    // Jika sudah format YYYY-MM-DD, langsung return
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    // Jika format JS Date string, parse dan ubah ke YYYY-MM-DD
+    const dateObj = new Date(dateStr);
+    if (!isNaN(dateObj)) {
+        const yyyy = dateObj.getFullYear();
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(dateObj.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+    // Fallback: return string asli
+    return dateStr;
+}
 
 module.exports = {
   scrapePelelangan,
