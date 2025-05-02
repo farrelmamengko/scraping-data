@@ -105,4 +105,4 @@ Dokumen ini menjelaskan logika antarmuka pengguna (UI) dari aplikasi web Express
     *   Data disiapkan untuk kalender (khusus route `/dashboard`).
 4.  Objek data yang sudah diproses (misalnya `viewData` atau `dashboardData`), yang kini mungkin menyertakan array attachments per tender, dilewatkan ke fungsi `res.render('nama_template', objek_data)`.
 5.  Engine EJS merender file template (`.ejs`) dengan mengganti variabel EJS (`<%= ... %>`) dan menjalankan logika EJS (`<% ... %>`) menggunakan data yang diterima dari backend.
-6.  HTML hasil render dikirim sebagai respons ke browser klien. 
+6.  HTML hasil render dikirim sebagai respons ke browser klien. s
