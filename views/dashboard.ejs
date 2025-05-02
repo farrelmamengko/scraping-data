@@ -662,20 +662,19 @@
             eventTextColor: '#ffffff', // Warna teks event (Putih)
             height: 'auto', // Atur tinggi otomatis atau nilai spesifik
             eventClick: function(info) {
-                // Akses data dari extendedProps
-                const props = info.event.extendedProps;
-                
-                // Cek apakah judul ada
-                if (props && props.fullTitle) {
-                    // Redirect ke halaman utama dengan judul sebagai keyword
-                    window.location.href = `/?keyword=${encodeURIComponent(props.fullTitle)}`;
+                if (info.event.url) {
+                    window.open(info.event.url, "_blank"); // Atau gunakan window.location.href = info.event.url; untuk redirect di tab yang sama
+                    info.jsEvent.preventDefault();
                 } else {
-                    // Fallback jika data tidak ada (seharusnya tidak terjadi)
-                    console.warn('Data judul tidak ditemukan untuk event ini.');
+                    // Fallback lama jika tidak ada url
+                    const props = info.event.extendedProps;
+                    if (props && props.fullTitle) {
+                        window.location.href = `/?keyword=${encodeURIComponent(props.fullTitle)}`;
+                    } else {
+                        console.warn('Data judul tidak ditemukan untuk event ini.');
+                    }
+                    info.jsEvent.preventDefault();
                 }
-                
-                // Mencegah browser mengikuti href event jika ada (opsional)
-                info.jsEvent.preventDefault(); 
             },
             eventDidMount: function(info) {
                 // Tambahkan tooltip dengan judul lengkap

@@ -196,7 +196,8 @@ app.get('/dashboard', async (req, res) => {
             .filter(tender => tender.batasWaktu && /^\d{4}-\d{2}-\d{2}$/.test(tender.batasWaktu)) // hanya yang punya deadline valid
             .map(tender => ({
                 title: `Deadline: ${tender.judul}`,
-                start: tender.batasWaktu
+                start: tender.batasWaktu,
+                url: `/tender/${tender.id}`
             }));
 
         // Render dashboard
