@@ -13,6 +13,31 @@ const BASE_URL = 'https://civd.skkmigas.go.id';
  * Ekstrak data procurement dari HTML menggunakan Cheerio (https://cheerio.js.org/)
  * 
  */
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    // Jika sudah format YYYY-MM-DD, langsung return
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    // Jika format Indonesia (02 Mei 2025), konversi manual
+    const bulan = {
+        'januari': '01', 'februari': '02', 'maret': '03', 'april': '04', 'mei': '05', 'juni': '06',
+        'juli': '07', 'agustus': '08', 'september': '09', 'oktober': '10', 'november': '11', 'desember': '12'
+    };
+    const parts = dateStr.toLowerCase().split(' ');
+    if (parts.length === 3 && bulan[parts[1]]) {
+        return `${parts[2]}-${bulan[parts[1]]}-${parts[0].padStart(2, '0')}`;
+    }
+    // Jika format JS Date string, parse dan ubah ke YYYY-MM-DD
+    const dateObj = new Date(dateStr);
+    if (!isNaN(dateObj)) {
+        const yyyy = dateObj.getFullYear();
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const dd = String(dateObj.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+    // Fallback: return string asli
+    return dateStr;
+}
+
 function extractProcurementFromHtml($) {
   const procurementData = [];
   
@@ -35,9 +60,9 @@ function extractProcurementFromHtml($) {
       const dateText = cardBody.find('small.card-subtitle').text();
       const dateMatch = dateText.match(/Tayang hingga\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})/i);
       if (dateMatch && dateMatch[1]) {
-        const today = new Date();
-        tanggal = today.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-        batasWaktu = dateMatch[1].trim();
+        // Gunakan formatDate untuk tanggal dan batasWaktu
+        tanggal = formatDate(new Date()); // Tanggal hari ini dalam format YYYY-MM-DD
+        batasWaktu = formatDate(dateMatch[1].trim());
       }
 
       // --- Ambil Deskripsi ---
