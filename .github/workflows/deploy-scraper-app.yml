@@ -285,7 +285,7 @@ jobs:
             
             # Stop dan remove container lama
             echo "Stopping and removing old containers..."
-            $compose_cmd down -v || true
+            $compose_cmd down || true
             
             # Hapus image lama
             echo "Removing old images..."
