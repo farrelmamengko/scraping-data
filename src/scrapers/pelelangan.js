@@ -182,6 +182,7 @@ async function scrapePelelangan() {
     const response = await axios.post(url,
       qs.stringify(formData), // Format data sebagai x-www-form-urlencoded
       {
+        timeout: 30000,
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36', // User agent generik
@@ -253,7 +254,7 @@ async function scrapePelelangan() {
 
   } catch (error) { // OUTER catch
     // Gunakan variabel url yang didefinisikan di scope luar
-    console.error(`Error saat scraping pelelangan AJAX dari ${url}:`, error.message); 
+    console.error(`Error saat scraping pelelangan AJAX dari ${typeof url !== 'undefined' ? url : 'URL tidak diketahui'}:`, error.message); 
     if (error.response) {
       console.error('Status Code:', error.response.status);
       // console.error('Response Data:', error.response.data); // Hati-hati jika response besar
@@ -270,6 +271,15 @@ function formatDate(dateStr) {
     if (!dateStr) return '';
     // Jika sudah format YYYY-MM-DD, langsung return
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    // Jika format Indonesia (06 Mei 2025), konversi manual
+    const bulan = {
+        'januari': '01', 'februari': '02', 'maret': '03', 'april': '04', 'mei': '05', 'juni': '06',
+        'juli': '07', 'agustus': '08', 'september': '09', 'oktober': '10', 'november': '11', 'desember': '12'
+    };
+    const parts = dateStr.toLowerCase().split(' ');
+    if (parts.length === 3 && bulan[parts[1]]) {
+        return `${parts[2]}-${bulan[parts[1]]}-${parts[0].padStart(2, '0')}`;
+    }
     // Jika format JS Date string, parse dan ubah ke YYYY-MM-DD
     const dateObj = new Date(dateStr);
     if (!isNaN(dateObj)) {
