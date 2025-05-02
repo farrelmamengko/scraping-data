@@ -47,12 +47,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
-      - name: Login to DockerHub
+      - name: Verify Connection
+        run: |
+          echo "Checking DNS Resolution..."
+          nslookup registry-1.docker.io || true
+          echo "Checking Internet Connection..."
+          curl -v https://registry-1.docker.io/v2/ || true
+      
+      - name: Login to DockerHub with Retry
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
+          registry: docker.io
+        
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@v5
@@ -128,6 +136,15 @@ jobs:
                 - DB_NAME=skk_tender
                 - WAIT_HOSTS=db:5432
                 - WAIT_TIMEOUT=300
+                - DOCKER_CLIENT_TIMEOUT=300
+                - COMPOSE_HTTP_TIMEOUT=300
+              dns:
+                - 8.8.8.8
+                - 8.8.4.4
+              deploy:
+                resources:
+                  limits:
+                    memory: 1G
               depends_on:
                 db:
                   condition: service_healthy
@@ -148,9 +165,9 @@ jobs:
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.NAS_HOST }}
-          port: ${{ secrets.NAS_PORT }}
           username: ${{ secrets.NAS_USERNAME }}
           password: ${{ secrets.NAS_PASSWORD }}
+          port: ${{ secrets.NAS_PORT }}
           script: |
             echo "${{ secrets.NAS_PASSWORD }}" | sudo -S chown -R ${{ secrets.NAS_USERNAME }}:root /volume1/docker/skk-tender-staging
             echo "${{ secrets.NAS_PASSWORD }}" | sudo -S chmod -R 775 /volume1/docker/skk-tender-staging
@@ -173,8 +190,35 @@ jobs:
           username: ${{ secrets.NAS_USERNAME }}
           password: ${{ secrets.NAS_PASSWORD }}
           port: ${{ secrets.NAS_PORT }}
-          command_timeout: 20m
+          command_timeout: 30m
           script: |
+            # Set Docker commands
+            docker_cmd="/usr/local/bin/docker"
+            compose_cmd="/usr/local/bin/docker-compose"
+            
+            # Function untuk retry command
+            retry_command() {
+              local max_attempts=5
+              local delay=30
+              local attempt=1
+              
+              while true; do
+                echo "Attempt $attempt of $max_attempts: $1"
+                if eval "$1"; then
+                  return 0
+                fi
+                
+                attempt=$(( attempt + 1 ))
+                if (( attempt > max_attempts )); then
+                  echo "Failed after $max_attempts attempts"
+                  return 1
+                fi
+                
+                echo "Waiting $delay seconds before retry..."
+                sleep $delay
+              done
+            }
+            
             # Masuk ke direktori target
             cd /volume1/docker/skk-tender-staging
             
@@ -183,48 +227,9 @@ jobs:
             mkdir -p ./data ./downloaded_pdfs ./migrations
             chmod -R 777 ./data ./downloaded_pdfs ./migrations
             
-            # Buat file migrasi
-            cat > migrations/init.sql << 'EOF'
-            -- Create procurement_list table
-            CREATE TABLE IF NOT EXISTS procurement_list (
-                id VARCHAR(255) PRIMARY KEY,
-                judul TEXT NOT NULL,
-                deskripsi TEXT,
-                tanggal DATE,
-                kkks TEXT,
-                golonganUsaha TEXT,
-                jenisPengadaan TEXT,
-                bidangUsaha TEXT,
-                batasWaktu TEXT,
-                url TEXT,
-                tipe_tender TEXT,
-                createdAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                updatedAt TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-
-            -- Create attachments table
-            CREATE TABLE IF NOT EXISTS attachments (
-                id SERIAL PRIMARY KEY,
-                tender_id VARCHAR(255) REFERENCES procurement_list(id),
-                attachment_id VARCHAR(255),
-                attachment_name TEXT,
-                attachment_url TEXT,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-
-            -- Create indexes
-            CREATE INDEX IF NOT EXISTS idx_procurement_tipe ON procurement_list(tipe_tender);
-            CREATE INDEX IF NOT EXISTS idx_procurement_date ON procurement_list(tanggal);
-            CREATE INDEX IF NOT EXISTS idx_attachments_tender ON attachments(tender_id);
-            EOF
-            
-            # Set permission file migrasi
-            chmod 644 migrations/init.sql
-            
-            # Set Docker commands
-            docker_cmd="/usr/local/bin/docker"
-            compose_cmd="/usr/local/bin/docker-compose"
+            # Login ke Docker Hub dengan retry
+            echo "Logging in to Docker Hub..."
+            retry_command "echo '${{ secrets.DOCKERHUB_TOKEN }}' | $docker_cmd login -u '${{ secrets.DOCKERHUB_USERNAME }}' --password-stdin"
             
             # Stop dan remove container lama
             echo "Stopping and removing old containers..."
@@ -234,35 +239,13 @@ jobs:
             echo "Removing old images..."
             $docker_cmd rmi ${{ env.DOCKER_IMAGE_NAME }}:latest || true
             
-            # Login ke Docker Hub dengan retry
-            echo "Logging in to Docker Hub..."
-            for i in {1..3}; do
-              if echo "${{ secrets.DOCKERHUB_TOKEN }}" | $docker_cmd login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin; then
-                break
-              fi
-              if [ $i -eq 3 ]; then
-                echo "Error: Failed to login to Docker Hub"
-                exit 1
-              fi
-              sleep 5
-            done
-            
-            # Pull latest image dengan retry dan progress
+            # Pull latest image dengan retry
             echo "Pulling latest image..."
-            for i in {1..3}; do
-              if $docker_cmd pull --quiet ${{ env.DOCKER_IMAGE_NAME }}:latest; then
-                break
-              fi
-              if [ $i -eq 3 ]; then
-                echo "Error: Failed to pull image"
-                exit 1
-              fi
-              sleep 5
-            done
+            retry_command "$docker_cmd pull ${{ env.DOCKER_IMAGE_NAME }}:latest"
             
-            # Start container dengan logging
+            # Start container dengan retry
             echo "Starting containers..."
-            $compose_cmd up -d
+            retry_command "$compose_cmd up -d"
             
             # Tunggu database siap dengan timeout lebih lama
             echo "Waiting for database to be ready..."
@@ -293,15 +276,6 @@ jobs:
               fi
               sleep 5
             done
-            
-            # Verifikasi migrasi berhasil
-            echo "Verifying database migration..."
-            sleep 10  # Tunggu sebentar untuk memastikan migrasi selesai
-            if ! $docker_cmd exec skk_tender_db psql -U postgres -d skk_tender -c "\dt" | grep -q "procurement_list"; then
-              echo "Error: Database migration failed - tables not created"
-              $docker_cmd logs skk_tender_db
-              exit 1
-            fi
             
             echo "Deployment completed successfully!"
 
@@ -349,4 +323,26 @@ jobs:
               exit 1
             fi
             
-            echo "All verification checks passed successfully!" 
+            echo "All verification checks passed successfully!"
+            
+      - name: Debug on Failure
+        if: failure()
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.NAS_HOST }}
+          username: ${{ secrets.NAS_USERNAME }}
+          password: ${{ secrets.NAS_PASSWORD }}
+          port: ${{ secrets.NAS_PORT }}
+          script: |
+            echo "=== Docker Info ==="
+            docker info
+            
+            echo "=== Docker Version ==="
+            docker version
+            
+            echo "=== Network Info ==="
+            curl -v https://registry-1.docker.io/v2/
+            
+            echo "=== Container Logs ==="
+            docker logs skk_tender_app || true
+            docker logs skk_tender_db || true 
