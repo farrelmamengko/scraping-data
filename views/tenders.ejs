@@ -532,10 +532,18 @@
 </nav>
 
 <div class="main-container">
-    <button id="scrapeBtn" style="margin-bottom: 20px;">Mulai Scraping</button>
+    <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+        <button id="scrapeBtnPrak" class="btn btn-search">Scraping Prakualifikasi</button>
+        <button id="scrapeBtnPel" class="btn btn-search">Scraping Pelelangan Umum</button>
+    </div>
     <script>
-      document.getElementById('scrapeBtn').onclick = function() {
+      document.getElementById('scrapeBtnPrak').onclick = function() {
         fetch('/run-scraper', { method: 'POST' })
+          .then(res => res.json())
+          .then(data => alert(data.message));
+      }
+      document.getElementById('scrapeBtnPel').onclick = function() {
+        fetch('/run-scraper-pelelangan', { method: 'POST' })
           .then(res => res.json())
           .then(data => alert(data.message));
       }

@@ -225,6 +225,16 @@ app.post('/run-scraper', (req, res) => {
   });
 });
 
+app.post('/run-scraper-pelelangan', (req, res) => {
+  exec('node src/scrapers/pelelangan.js', (error, stdout, stderr) => {
+    if (error) {
+      console.error('Scraping pelelangan gagal:', error);
+      return res.json({ message: 'Scraping pelelangan gagal dijalankan.' });
+    }
+    res.json({ message: 'Scraping pelelangan berhasil dijalankan.' });
+  });
+});
+
 // Start server
 app.listen(port, () => {
   console.log(`Server berjalan di http://localhost:${port}`);
