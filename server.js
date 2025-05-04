@@ -3,6 +3,7 @@ const path = require('path');
 const { getTendersWithAttachments, initializeDb } = require('./src/utils/database');
 const fs = require('fs');
 const { sanitizeFilename } = require('./src/utils/helpers');
+const { exec } = require('child_process');
 
 const app = express();
 const port = 3000;
@@ -212,6 +213,16 @@ app.get('/dashboard', async (req, res) => {
         console.error('Error fetching dashboard data:', error);
         res.status(500).send('Internal Server Error');
     }
+});
+
+app.post('/run-scraper', (req, res) => {
+  exec('node src/scrapers/procurementList.js', (error, stdout, stderr) => {
+    if (error) {
+      console.error('Scraping gagal:', error);
+      return res.json({ message: 'Scraping gagal dijalankan.' });
+    }
+    res.json({ message: 'Scraping berhasil dijalankan.' });
+  });
 });
 
 // Start server
