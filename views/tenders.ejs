@@ -532,7 +532,14 @@
 </nav>
 
 <div class="main-container">
-
+    <button id="scrapeBtn" style="margin-bottom: 20px;">Mulai Scraping</button>
+    <script>
+      document.getElementById('scrapeBtn').onclick = function() {
+        fetch('/run-scraper', { method: 'POST' })
+          .then(res => res.json())
+          .then(data => alert(data.message));
+      }
+    </script>
     <!-- Panel Pencarian -->
     <div class="search-panel">
         <form method="GET" action="/">
@@ -1079,15 +1086,6 @@
         }
     });
 
-</script>
-
-<button id="scrapeBtn" style="margin-bottom: 20px;">Mulai Scraping</button>
-<script>
-  document.getElementById('scrapeBtn').onclick = function() {
-    fetch('/run-scraper', { method: 'POST' })
-      .then(res => res.json())
-      .then(data => alert(data.message));
-  }
 </script>
 
 </body>
