@@ -107,4 +107,3 @@ Dokumen ini menjelaskan logika antarmuka pengguna (UI) dari aplikasi web Express
 5.  Engine EJS merender file template (`.ejs`) dengan mengganti variabel EJS (`<%= ... %>`) dan menjalankan logika EJS (`<% ... %>`) menggunakan data yang diterima dari backend.
 6.  HTML hasil render dikirim sebagai respons ke browser klien. 
 
-s
