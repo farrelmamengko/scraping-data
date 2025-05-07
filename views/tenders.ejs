@@ -606,13 +606,11 @@
                         <div class="card-header">
                             <h5 class="card-title"><%= tender.judul %></h5>
                             <div class="card-status">
-                                <% if (tender.isNew) { %>
-                                    <span class="badge status-new">New</span>
-                                <% } %>
                                 <% if (tender.isExpired) { %>
-                                    <span class="badge status-closed">Closed</span>
-                                <% /* Tambahkan status Open jika tidak New dan tidak Expired */ %>
-                                <% } else if (!tender.isNew && !tender.isExpired) { %> 
+                                    <span class="badge status-closed">Expired</span>
+                                <% } else if (tender.isNew) { %>
+                                    <span class="badge status-new">New</span>
+                                <% } else { %>
                                     <span class="badge status-open">Open</span>
                                 <% } %>
                             </div>
@@ -724,13 +722,11 @@
                         <div class="card-header">
                             <h5 class="card-title"><%= tender.judul %></h5>
                             <div class="card-status">
-                                <% if (tender.isNew) { %>
-                                    <span class="badge status-new">New</span>
-                                <% } %>
                                 <% if (tender.isExpired) { %>
-                                    <span class="badge status-closed">Closed</span>
-                                <% /* Tambahkan status Open jika tidak New dan tidak Expired */ %>
-                                <% } else if (!tender.isNew && !tender.isExpired) { %> 
+                                    <span class="badge status-closed">Expired</span>
+                                <% } else if (tender.isNew) { %>
+                                    <span class="badge status-new">New</span>
+                                <% } else { %>
                                     <span class="badge status-open">Open</span>
                                 <% } %>
                             </div>

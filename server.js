@@ -82,73 +82,67 @@ app.get('/', async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const keyword = req.query.keyword || null;
         const status = req.query.status || null;
+        const type = req.query.type || null;
 
-        // Ambil data tender Prakualifikasi
-        const { tenders: prakualifikasiTenders, totalPages: totalPagesPrak } = await getTendersWithAttachments({
-            page,
-            limit: 6,
-            type: 'Prakualifikasi',
-            keyword
-        });
+        let prakualifikasiTenders = [], pelelanganTenders = [], totalPagesPrak = 0, totalPagesPelelangan = 0;
 
-        // Ambil data tender Pelelangan Umum
-        const { tenders: pelelanganTenders, totalPages: totalPagesPelelangan } = await getTendersWithAttachments({
-            page,
-            limit: 6,
-            type: 'Pelelangan Umum',
-            keyword
-        });
+        if (!type || type === '') {
+            // Jika "Semua", ambil kedua tipe tender
+            const resultPrak = await getTendersWithAttachments({
+                page,
+                limit: 6,
+                type: 'Prakualifikasi',
+                keyword,
+                status
+            });
+            prakualifikasiTenders = resultPrak.tenders;
+            totalPagesPrak = resultPrak.totalPages;
 
-        // Fungsi filter status di JS
-        function isExpired(batasWaktu) {
-            if (!batasWaktu) return false;
-            const parts = batasWaktu.split(' ');
-            const months = {
-                Jan: '01', Januari: '01',
-                Feb: '02', Februari: '02',
-                Mar: '03', Maret: '03',
-                Apr: '04', April: '04',
-                May: '05', Mei: '05',
-                Jun: '06', Juni: '06',
-                Jul: '07', Juli: '07',
-                Aug: '08', Agustus: '08', Agu: '08',
-                Sep: '09', September: '09',
-                Oct: '10', Oktober: '10', Okt: '10',
-                Nov: '11', November: '11',
-                Dec: '12', Desember: '12', Des: '12'
-            };
-            if (parts.length === 3 && months[parts[1]]) {
-                const dateStr = `${parts[2]}-${months[parts[1]]}-${parts[0].padStart(2, '0')}`;
-                return new Date(dateStr) < new Date();
-            }
-            return false;
-        }
-
-        let prakualifikasiTendersFiltered = prakualifikasiTenders;
-        let pelelanganTendersFiltered = pelelanganTenders;
-        if (status === 'active') {
-            prakualifikasiTendersFiltered = prakualifikasiTenders.filter(t => !isExpired(t.batasWaktu));
-            pelelanganTendersFiltered = pelelanganTenders.filter(t => !isExpired(t.batasWaktu));
-        } else if (status === 'expired') {
-            prakualifikasiTendersFiltered = prakualifikasiTenders.filter(t => isExpired(t.batasWaktu));
-            pelelanganTendersFiltered = pelelanganTenders.filter(t => isExpired(t.batasWaktu));
+            const resultPel = await getTendersWithAttachments({
+                page,
+                limit: 6,
+                type: 'Pelelangan Umum',
+                keyword,
+                status
+            });
+            pelelanganTenders = resultPel.tenders;
+            totalPagesPelelangan = resultPel.totalPages;
+        } else if (type === 'Prakualifikasi') {
+            const resultPrak = await getTendersWithAttachments({
+                page,
+                limit: 6,
+                type: 'Prakualifikasi',
+                keyword,
+                status
+            });
+            prakualifikasiTenders = resultPrak.tenders;
+            totalPagesPrak = resultPrak.totalPages;
+        } else if (type === 'Pelelangan Umum') {
+            const resultPel = await getTendersWithAttachments({
+                page,
+                limit: 6,
+                type: 'Pelelangan Umum',
+                keyword,
+                status
+            });
+            pelelanganTenders = resultPel.tenders;
+            totalPagesPelelangan = resultPel.totalPages;
         }
 
         // Proses tender
-        const processedPrakualifikasiTenders = prakualifikasiTendersFiltered.map(tender => {
+        const processedPrakualifikasiTenders = prakualifikasiTenders.map(tender => {
             tender = addLocalPdfPath(tender);
             tender.isNew = checkIsNew(tender.createdAt);
             tender.isExpired = checkIsExpired(tender.batasWaktu);
             return tender;
         });
-        const processedPelelanganTenders = pelelanganTendersFiltered.map(tender => {
+        const processedPelelanganTenders = pelelanganTenders.map(tender => {
             tender = addLocalPdfPath(tender);
             tender.isNew = checkIsNew(tender.createdAt);
             tender.isExpired = checkIsExpired(tender.batasWaktu);
             return tender;
         });
 
-        // Render halaman dengan data yang benar
         res.render('tenders', {
             prakualifikasiTenders: processedPrakualifikasiTenders,
             pelelanganTenders: processedPelelanganTenders,
@@ -158,8 +152,9 @@ app.get('/', async (req, res) => {
             totalPagesPel: totalPagesPelelangan,
             keyword,
             status,
-            totalResultsPrak: prakualifikasiTendersFiltered.length,
-            totalResultsPel: pelelanganTendersFiltered.length
+            type,
+            totalResultsPrak: processedPrakualifikasiTenders.length,
+            totalResultsPel: processedPelelanganTenders.length
         });
     } catch (error) {
         console.error('Error fetching tenders:', error);
