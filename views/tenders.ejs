@@ -536,16 +536,36 @@
         <button id="scrapeBtnPrak" class="btn btn-search">Scraping Prakualifikasi</button>
         <button id="scrapeBtnPel" class="btn btn-search">Scraping Pelelangan Umum</button>
     </div>
+    <div id="loading" style="display:none; color:#e71e25; font-weight:bold; margin-bottom: 15px;">
+      ⏳ Sedang memproses scraping, mohon tunggu...
+    </div>
     <script>
+      const loadingDiv = document.getElementById('loading');
       document.getElementById('scrapeBtnPrak').onclick = function() {
+        loadingDiv.style.display = 'block';
         fetch('/run-scraper', { method: 'POST' })
           .then(res => res.json())
-          .then(data => alert(data.message));
+          .then(data => {
+            loadingDiv.style.display = 'none';
+            alert(data.message);
+          })
+          .catch(() => {
+            loadingDiv.style.display = 'none';
+            alert('Terjadi error saat menjalankan scraping.');
+          });
       }
       document.getElementById('scrapeBtnPel').onclick = function() {
+        loadingDiv.style.display = 'block';
         fetch('/run-scraper-pelelangan', { method: 'POST' })
           .then(res => res.json())
-          .then(data => alert(data.message));
+          .then(data => {
+            loadingDiv.style.display = 'none';
+            alert(data.message);
+          })
+          .catch(() => {
+            loadingDiv.style.display = 'none';
+            alert('Terjadi error saat menjalankan scraping.');
+          });
       }
     </script>
     <!-- Panel Pencarian -->
