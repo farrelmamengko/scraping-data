@@ -183,11 +183,104 @@ async function getTendersWithAttachments(options = {}) {
     };
 }
 
+async function getTendersByCompanyKeywords({ page = 1, limit = 10, generalKeyword = null, companyKeywordsList = [] }) {
+    const offset = (page - 1) * limit;
+    const params = [];
+    let whereClauses = [];
+    let paramCounter = 1;
+
+    // Filter berdasarkan companyKeywordsList
+    if (companyKeywordsList && companyKeywordsList.length > 0) {
+        let companyKeywordGroupedConditions = [];
+        companyKeywordsList.forEach(compKeyword => {
+            const keywordParamPlaceholder = `$${paramCounter}`;
+            params.push(`%${compKeyword}%`);
+            let conditionsForThisKeyword = [
+                `p.judul ILIKE ${keywordParamPlaceholder}`,
+                `p.deskripsi ILIKE ${keywordParamPlaceholder}`,
+                `p.bidangUsaha ILIKE ${keywordParamPlaceholder}`,
+                `p.jenisPengadaan ILIKE ${keywordParamPlaceholder}`,
+                `p.kkks ILIKE ${keywordParamPlaceholder}`
+            ];
+            companyKeywordGroupedConditions.push(`(${conditionsForThisKeyword.join(' OR ')})`);
+            paramCounter++;
+        });
+        if (companyKeywordGroupedConditions.length > 0) {
+            whereClauses.push(`(${companyKeywordGroupedConditions.join(' OR ')})`);
+        }
+    }
+
+    // Filter berdasarkan generalKeyword (pencarian umum di halaman ini)
+    if (generalKeyword) {
+        const generalKeywordParamPlaceholder = `$${paramCounter}`;
+        params.push(`%${generalKeyword}%`);
+        let generalKeywordConditions = [
+            `p.judul ILIKE ${generalKeywordParamPlaceholder}`,
+            `p.deskripsi ILIKE ${generalKeywordParamPlaceholder}`,
+            `p.bidangUsaha ILIKE ${generalKeywordParamPlaceholder}`,
+            `p.jenisPengadaan ILIKE ${generalKeywordParamPlaceholder}`,
+            `p.kkks ILIKE ${generalKeywordParamPlaceholder}`
+        ];
+        whereClauses.push(`(${generalKeywordConditions.join(' OR ')})`);
+        paramCounter++;
+    }
+
+    const whereString = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    const query = `
+        SELECT 
+            p.id, p.judul, p.deskripsi, p.tanggal, p.kkks, 
+            p.golonganUsaha AS "golonganUsaha", p.jenisPengadaan AS "jenisPengadaan",
+            p.bidangUsaha AS "bidangUsaha", p.batasWaktu AS "batasWaktu", 
+            p.url, p.tipe_tender AS "tipeTender", p.createdAt, p.updatedAt,
+            json_agg(json_build_object(
+                'id', a.id,
+                'attachment_id', a.attachment_id,
+                'attachment_name', a.attachment_name,
+                'attachment_url', a.attachment_url
+            )) FILTER (WHERE a.id IS NOT NULL) as attachments
+        FROM procurement_list p
+        LEFT JOIN attachments a ON p.id = a.tender_id
+        ${whereString}
+        GROUP BY p.id
+        ORDER BY p.createdAt DESC
+        LIMIT $${paramCounter} OFFSET $${paramCounter + 1}
+    `;
+    const countParams = params.slice(); // Salin params untuk count query sebelum menambahkan limit/offset
+    params.push(limit, offset);
+    
+    const countQuery = `
+        SELECT COUNT(DISTINCT p.id) as total
+        FROM procurement_list p
+        ${whereString}
+    `;
+
+    const tendersResult = await pool.query(query, params);
+    const totalResult = await pool.query(countQuery, countParams);
+    
+    const totalTenders = parseInt(totalResult.rows[0].total, 10);
+    const totalPages = Math.ceil(totalTenders / limit);
+
+    const mappedTenders = tendersResult.rows.map(row => ({
+        ...row,
+        // Mapping sudah dihandle oleh alias di SELECT, tapi pastikan konsisten
+        dbAttachments: row.attachments || [] 
+    }));
+
+    return {
+        tenders: mappedTenders,
+        totalPages,
+        currentPage: page,
+        totalTenders
+    };
+}
+
 module.exports = {
     initializeDb,
-  getDb,
+    getDb,
     closeDb,
     getExistingTenderIds,
-  insertProcurementData,
-    getTendersWithAttachments
+    insertProcurementData,
+    getTendersWithAttachments,
+    getTendersByCompanyKeywords
 }; 

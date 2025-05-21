@@ -1,6 +1,6 @@
 const express = require('express');
 const path = require('path');
-const { getTendersWithAttachments, initializeDb } = require('./src/utils/database');
+const { getTendersWithAttachments, initializeDb, getTendersByCompanyKeywords } = require('./src/utils/database');
 const fs = require('fs');
 const { sanitizeFilename } = require('./src/utils/helpers');
 const { exec } = require('child_process');
@@ -228,6 +228,57 @@ app.post('/run-scraper-pelelangan', (req, res) => {
     }
     res.json({ message: 'Scraping pelelangan berhasil dijalankan.' });
   });
+});
+
+app.get('/tender-perusahaan', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const generalKeyword = req.query.keyword || null; // Untuk pencarian umum di halaman ini
+        
+        // Daftar kata kunci perusahaan (kemampuan produksi)
+        const companyKeywordsList = [
+            "Interpretasi Data Geologi Dan Geofisika",
+            "Interpretasi Data Logging",
+            "Interpretasi Data Seismik",
+            "Penilaian Formasi",
+            "Pemodelan Reservoir",
+            "Reservoir Modeling",
+            "Simulasi Reservoir",
+            "Reservoir Simulation",
+            "Pengolahan Data Seismik",
+            "Seismic Data Processing",
+            "Survei Geologi",
+            "Survei Geofisika",
+            "Survei Geoteknik",
+            "Mud Logging"
+        ];
+
+        const { tenders, totalPages, currentPage, totalTenders } = await getTendersByCompanyKeywords({
+            page,
+            limit: 10, 
+            generalKeyword, 
+            companyKeywordsList 
+        });
+
+        const processedTenders = tenders.map(tender => {
+            tender = addLocalPdfPath(tender); 
+            tender.isNew = checkIsNew(tender.createdAt);
+            tender.isExpired = checkIsExpired(tender.batasWaktu);
+            return tender;
+        });
+
+        res.render('tender_perusahaan_page', { // Nama file EJS baru
+            tenders: processedTenders,
+            currentPage,
+            totalPages,
+            totalTenders,
+            keyword: generalKeyword, // Untuk mengisi field pencarian umum
+            pageTitle: 'Tender Sesuai Kemampuan Produksi'
+        });
+    } catch (error) {
+        console.error('Error fetching company relevant tenders:', error);
+        res.status(500).send('Internal Server Error');
+    }
 });
 
 // Start server
