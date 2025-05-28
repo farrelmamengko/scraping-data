@@ -1,25 +1,24 @@
 const { Pool } = require('pg');
 
-// Konfigurasi pool koneksi PostgreSQL (asumsi konfigurasi sama dengan database.js)
-// Sebaiknya ini di-refactor ke modul konfigurasi terpusat di masa mendatang
+// Konfigurasi pool koneksi PostgreSQL menggunakan variabel lingkungan
 const pool = new Pool({
-    user: 'postgres',
-    host: 'localhost', // Sudah benar untuk eksekusi dari host
-    database: 'skk_tender',
-    password: 'postgres123', // Sudah sesuai dengan docker-compose.yml
-    port: 5434, // Diubah dari 5432 menjadi 5434 sesuai port mapping
+    user: process.env.DB_USER || 'postgres',
+    host: process.env.DB_HOST || 'db', // Default ke 'db' untuk Docker
+    database: process.env.DB_NAME || 'skk_tender',
+    password: process.env.DB_PASSWORD || 'postgres123',
+    port: parseInt(process.env.DB_PORT) || 5432, // Default ke 5432 untuk Docker
 });
 
 /**
  * Mengambil dan memfilter tender berdasarkan array keyword.
  * Tender akan cocok jika salah satu keyword ditemukan.
- * Hasilnya akan dicetak ke konsol.
  * @param {string[]} keywords Array kata kunci untuk memfilter tender.
+ * @returns {Promise<Array<Object>>} Promise yang resolve dengan array data tender yang difilter.
  */
-async function getAndPrintFilteredTenders(keywords) {
+async function getFilteredTendersByKeywords(keywords) { // Nama fungsi diubah
     if (!keywords || !Array.isArray(keywords) || keywords.length === 0 || keywords.every(k => k.trim() === '')) {
         console.log("Array keywords tidak boleh kosong atau hanya berisi string kosong.");
-        return;
+        return []; // Kembalikan array kosong
     }
 
     const params = [];
@@ -29,14 +28,17 @@ async function getAndPrintFilteredTenders(keywords) {
     for (const keyword of keywords) {
         if (keyword && keyword.trim() !== '') {
             const currentKeywordParam = `$${paramCounter}`;
-            params.push(`%${keyword.trim()}%`);
+            // Escape special regex characters in the keyword and add word boundaries
+            const escapedKeyword = keyword.trim().replace(/[.*+?^${}()|[\].\\]/g, '\\$&');
+            const regexPattern = `\\y${escapedKeyword}\\y`; 
+            params.push(regexPattern);
             keywordConditions.push(`(
-                judul ILIKE ${currentKeywordParam} OR
-                deskripsi ILIKE ${currentKeywordParam} OR
-                bidangUsaha ILIKE ${currentKeywordParam} OR
-                kkks ILIKE ${currentKeywordParam} OR
-                golonganUsaha ILIKE ${currentKeywordParam} OR
-                jenisPengadaan ILIKE ${currentKeywordParam}
+                judul ~* ${currentKeywordParam} OR
+                deskripsi ~* ${currentKeywordParam} OR
+                bidangUsaha ~* ${currentKeywordParam} OR
+                kkks ~* ${currentKeywordParam} OR
+                golonganUsaha ~* ${currentKeywordParam} OR
+                jenisPengadaan ~* ${currentKeywordParam}
             )`);
             paramCounter++;
         }
@@ -44,7 +46,7 @@ async function getAndPrintFilteredTenders(keywords) {
 
     if (keywordConditions.length === 0) {
         console.log("Tidak ada keyword valid yang diberikan setelah pembersihan.");
-        return;
+        return []; // Kembalikan array kosong
     }
 
     const whereString = `WHERE ${keywordConditions.join(' OR ')}`;
@@ -83,8 +85,9 @@ async function getAndPrintFilteredTenders(keywords) {
 
         if (rows.length === 0) {
             console.log("Tidak ada tender yang cocok dengan keyword tersebut.");
+            return []; // Kembalikan array kosong
         } else {
-            console.log(`Ditemukan ${rows.length} tender:`);
+            console.log(`Ditemukan ${rows.length} tender.`); // Log jumlah saja
             const mappedTenders = rows.map(row => ({
                 id: row.id,
                 judul: row.judul,
@@ -100,47 +103,18 @@ async function getAndPrintFilteredTenders(keywords) {
                 createdAt: row.createdat,
                 attachments: row.attachments || []
             }));
-            console.log(JSON.stringify(mappedTenders, null, 2));
+            return mappedTenders; // Kembalikan data yang sudah di-map
         }
     } catch (error) {
         console.error("Error saat mengambil data tender:", error);
-    } finally {
-        await pool.end(); 
-    }
+        return []; // Kembalikan array kosong jika ada error
+    } 
+    // Hapus finally block dan pool.end()
 }
 
-module.exports = { getAndPrintFilteredTenders };
+module.exports = { getFilteredTendersByKeywords }; // Ekspor fungsi baru
 
-// Contoh penggunaan (bisa di-uncomment untuk pengujian langsung)
-
-(async () => {
-    // const companyKeywords = [
-    //     "JASA NON KONSTRUKSI/Jasa Geologi & Geofisika",
-    //     "Jasa Interpretasi G&G",
-    //     "Interpretasi Data Geologi Dan Geofisika",
-    //     "Interpretasi Data Logging",
-    //     "Interpretasi Data Seismik",
-    //     "Penilaian Formasi",
-    //     "Pemodelan Reservoir (Reservoir Modeling)",
-    //     "Simulasi Reservoir (Reservoir Simulation)",
-    //     "Jasa Survei G&G",
-    //     "Pengolahan Data Seismik (Seismic Data Processing)",
-    //     "Survei Geologi",
-    //     "Survei Geofisika",
-    //     "Survei Geoteknik",
-    //     "Mud Logging"
-    // ]; // Daftar panjang dikomentari untuk pengujian
-
-    // const companyKeywords = ["Geologi"]; // Dikomentari untuk pengujian baru
-    // const companyKeywords = ["Seismik"]; // Dikomentari untuk pengujian baru
-    const companyKeywords = ["Seismik", "Formasi"]; // Diubah untuk menguji dengan keyword "Seismik" DAN "Formasi"
-    
-    await getAndPrintFilteredTenders(companyKeywords);
-    
-    // Contoh lain dengan keyword lebih sedikit
-    // await getAndPrintFilteredTenders(["Survei Geologi", "Mud Logging"]);
-
-    // Contoh dengan array kosong atau keyword tidak valid
-    // await getAndPrintFilteredTenders([]);
-    // await getAndPrintFilteredTenders([""]);
-})(); 
+// Hapus contoh penggunaan langsung (IIFE)
+// (async () => {
+// ...
+// })(); 

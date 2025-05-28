@@ -4,9 +4,10 @@ const { getTendersWithAttachments, initializeDb } = require('./src/utils/databas
 const fs = require('fs');
 const { sanitizeFilename } = require('./src/utils/helpers');
 const { exec } = require('child_process');
+const { getFilteredTendersByKeywords } = require('./src/utils/companyTenderFilter');
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // Set EJS sebagai view engine
 app.set('view engine', 'ejs');
@@ -75,6 +76,27 @@ function addLocalPdfPath(tender) {
     }
             return tender; 
         }
+
+// Fungsi helper untuk menjalankan skrip scraper
+function runScraperScript(scriptPath, res) {
+    // Path ke node interpreter di dalam container mungkin perlu disesuaikan
+    // atau pastikan node ada di PATH environment container.
+    const command = `node ${scriptPath}`;
+
+    exec(command, { cwd: path.join(__dirname, 'src/scrapers') }, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`Error executing ${scriptPath}:`, error);
+            console.error(`Stderr from ${scriptPath}:`, stderr);
+            // Jangan kirim error detail ke klien untuk keamanan
+            return res.status(500).json({ message: `Terjadi kesalahan saat menjalankan scraper ${path.basename(scriptPath)}.` });
+        }
+        console.log(`Stdout from ${scriptPath}:`, stdout);
+        if (stderr) { // Log stderr meskipun tidak dianggap error oleh exec
+            console.warn(`Stderr (non-error) from ${scriptPath}:`, stderr);
+        }
+        res.json({ message: `Scraper ${path.basename(scriptPath)} berhasil dijalankan. Periksa log server untuk detail. Proses mungkin berjalan di latar belakang.` });
+    });
+}
 
 // Route untuk halaman utama
 app.get('/', async (req, res) => {
@@ -210,24 +232,71 @@ app.get('/dashboard', async (req, res) => {
     }
 });
 
-app.post('/run-scraper', (req, res) => {
-  exec('node src/scrapers/procurementList.js', (error, stdout, stderr) => {
-    if (error) {
-      console.error('Scraping gagal:', error);
-      return res.json({ message: 'Scraping gagal dijalankan.' });
+// Route untuk tender khusus berdasarkan KKKS (dan sekarang keywords)
+app.get('/tender-khusus', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1; // Pagination masih bisa relevan
+
+        // DAFTAR KATA KUNCI PERUSAHAAN YANG SUDAH DITENTUKAN
+        // Ganti array ini dengan daftar kata kunci yang Anda inginkan
+        const predefinedCompanyKeywords = ["Seismik", "Formasi", "Reservoir Simulation", "Reservoir Modeling", "G&G", "Geoteknik", "Geofisika"]; 
+
+        let tenders = [];
+        let totalPages = 0;
+        let errorMessage = null;
+        let filteredResults = []; // Inisialisasi di sini
+
+        if (predefinedCompanyKeywords && predefinedCompanyKeywords.length > 0) {
+            // filteredResults dideklarasikan di atas dan diisi di sini
+            filteredResults = await getFilteredTendersByKeywords(predefinedCompanyKeywords);
+            
+            tenders = filteredResults.map(tender => {
+                tender = addLocalPdfPath(tender); 
+                tender.isNew = checkIsNew(tender.createdAt);
+                tender.isExpired = checkIsExpired(tender.batasWaktu);
+                return tender;
+            });
+            // Untuk pagination sederhana, jika ada hasil, anggap 1 halaman, atau implementasi pagination penuh jika perlu
+            totalPages = tenders.length > 0 ? Math.ceil(tenders.length / (req.query.limit || 10)) : 0; 
+            // Jika menggunakan pagination, Anda perlu memotong array 'tenders' sesuai 'page' dan 'limit'
+            // Contoh: const limit = parseInt(req.query.limit) || 10;
+            // const offset = (page - 1) * limit;
+            // tenders = tenders.slice(offset, offset + limit);
+        } else {
+            errorMessage = 'Tidak ada kata kunci perusahaan yang ditentukan di konfigurasi server.';
+        }
+
+        res.render('tender-khusus', {
+            tenders: tenders, // Kirim data tender yang sudah dipaginasi jika diimplementasikan
+            currentPage: page,
+            totalPages: totalPages,
+            // companyKeywords: predefinedCompanyKeywords.join(', '), // Bisa dikirim untuk info
+            totalResults: tenders.length, // Gunakan tenders.length karena ini yang dikirim ke view
+            errorMessage,
+            searchPerformed: true, // Dianggap selalu search karena otomatis
+            // Hapus variabel query yang tidak lagi digunakan sebagai input utama jika form dihilangkan
+            // keyword: null,
+            // status: null,
+            // type: null,
+            // kkks: null,
+            // companyKeywordsRaw: predefinedCompanyKeywords.join(', ') // Jika masih mau ditampilkan
+        });
+    } catch (error) {
+        console.error('Error fetching tender khusus:', error);
+        res.status(500).send('Internal Server Error');
     }
-    res.json({ message: 'Scraping berhasil dijalankan.' });
-  });
 });
 
+// Route untuk menjalankan scraper procurementList.js
+app.post('/run-scraper', (req, res) => {
+    console.log('Menerima permintaan untuk menjalankan scraper Prakualifikasi (procurementList.js)');
+    runScraperScript('procurementList.js', res);
+});
+
+// Route untuk menjalankan scraper pelelangan.js
 app.post('/run-scraper-pelelangan', (req, res) => {
-  exec('node src/scrapers/pelelangan.js', (error, stdout, stderr) => {
-    if (error) {
-      console.error('Scraping pelelangan gagal:', error);
-      return res.json({ message: 'Scraping pelelangan gagal dijalankan.' });
-    }
-    res.json({ message: 'Scraping pelelangan berhasil dijalankan.' });
-  });
+    console.log('Menerima permintaan untuk menjalankan scraper Pelelangan Umum (pelelangan.js)');
+    runScraperScript('pelelangan.js', res);
 });
 
 // Start server

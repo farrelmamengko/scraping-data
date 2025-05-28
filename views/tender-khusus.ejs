@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tender Sesuai Minat Perusahaan</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* GAYA CSS DARI tenders.ejs (DIPERSINGKAT UNTUK CONTOH) */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #ffffff;
+            color: #333333;
+            line-height: 1.6;
+            padding: 0 20px 20px 20px;
+        }
+        .app-header {
+            background-color: #ffffff;
+            padding: 15px 40px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e71e25;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .app-header h1 {
+            color: #e71e25;
+            font-size: 1.8em;
+            font-weight: 700;
+            margin: 0;
+        }
+        .main-container {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 0 10px;
+        }
+        .search-panel-khusus {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #dee2e6;
+        }
+        .search-panel-khusus h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        .search-form-khusus .search-field {
+            margin-bottom: 15px;
+        }
+        .search-form-khusus label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #495057;
+        }
+        .search-form-khusus input[type="text"],
+        .search-form-khusus textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        .search-form-khusus textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        .search-buttons-khusus button {
+            padding: 10px 20px;
+            font-size: 1em;
+            border-radius: 5px;
+            cursor: pointer;
+            border: none;
+            background-color: #e71e25;
+            color: white;
+            transition: background-color 0.2s ease;
+        }
+        .search-buttons-khusus button:hover {
+            background-color: #c41219;
+        }
+        .tender-section h2 {
+            color: #333333;
+            margin-top: 10px;
+            margin-bottom: 25px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e71e25;
+            font-weight: 600;
+            font-size: 1.6em;
+        }
+        .tender-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 25px;
+        }
+        .tender-card {
+            background-color: #ffffff;
+            border: 1px solid #dee2e6; 
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.06);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            overflow: hidden; 
+        }
+        .tender-card:hover { transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.09); }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 15px 20px; border-bottom: 1px solid #eeeeee; background-color: #f8f9fa; gap: 10px; }
+        .card-title { font-size: 1.15em; color: #333333; margin: 0; font-weight: 600; line-height: 1.4; }
+        .card-status { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+        .badge { display: inline-block; padding: 4px 10px; font-size: 0.75em; font-weight: 600; line-height: 1; text-align: center; white-space: nowrap; vertical-align: baseline; border-radius: 15px; }
+        .status-new { background-color: #198754; color: white; }
+        .status-open { background-color: #0d6efd; color: white; }
+        .status-closed { background-color: #6c757d; color: white; }
+        .card-body { padding: 15px 20px; flex-grow: 1; }
+        .info-row { display: flex; align-items: center; margin-bottom: 8px; font-size: 0.9em; color: #6c757d; }
+        .info-icon { width: 20px; text-align: center; margin-right: 8px; color: #adb5bd; }
+        .info-label { font-weight: 500; margin-right: 5px; color: #495057; }
+        .info-value { color: #333333; }
+        .info-row.deadline-expired .info-value { color: #dc3545; font-weight: 500; }
+        .bidang-usaha { margin-top: 15px; font-size: 0.9em; }
+        .bidang-usaha strong { display: block; font-weight: 600; margin-bottom: 4px; color: #495057; }
+        .bidang-usaha p { margin: 0; color: #333333; line-height: 1.5; }
+        .card-actions { padding: 15px 20px; border-top: 1px solid #eeeeee; background-color: #f8f9fa; display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn { display: inline-flex; align-items: center; padding: 8px 15px; border-radius: 6px; text-decoration: none; font-size: 0.85em; font-weight: 600; text-align: center; border: none; cursor: pointer; transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease; }
+        .btn:active { transform: scale(0.98); }
+        .btn i { margin-right: 5px; }
+        .btn-detail { background-color: #e71e25; color: white; }
+        .btn-detail:hover { background-color: #c41219; }
+        .btn-pdf { background-color: #6c757d; color: white; }
+        .btn-pdf:hover { background-color: #5a6268; }
+        .btn.disabled { background-color: #e9ecef; color: #adb5bd; cursor: not-allowed; opacity: 0.7; border: 1px solid #ced4da; }
+        .empty-message { text-align: center; color: #6c757d; margin-top: 30px; padding: 25px; background-color: #ffffff; border: 1px solid #e1e4e8; border-radius: 8px; font-style: italic; }
+        .error-message { color: #dc3545; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px 15px; border-radius: 5px; margin-bottom: 20px; }
+        .app-nav ul { list-style: none; padding: 0; display: flex; gap: 20px; border-bottom: 1px solid #ddd; margin-bottom: 20px; padding-bottom: 10px;}
+        .app-nav a { text-decoration: none; color: #555; font-weight: 500; padding-bottom: 10px; border-bottom: 3px solid transparent; transition: color 0.2s, border-bottom-color 0.2s;}
+        .app-nav a:hover { color: #e71e25; }
+        .app-nav a.active { color: #e71e25; border-bottom-color: #e71e25; font-weight: 600;}
+    </style>
+</head>
+<body>
+    <header class="app-header">
+        <h1>SKK Migas Tender</h1>
+    </header>
+
+    <nav class="app-nav">
+        <ul>
+            <li><a href="/">Daftar Tender</a></li>
+            <li><a href="/dashboard">Dashboard</a></li>
+            <li><a href="/tender-khusus" class="active">Tender Minat Perusahaan</a></li>
+        </ul>
+    </nav>
+
+    <div class="main-container">
+        <% if (locals.errorMessage) { %>
+            <div class="error-message">
+                <p><%= errorMessage %></p>
+            </div>
+        <% } %>
+
+        <% if (tenders && tenders.length > 0) { %>
+            <div class="tender-section">
+                <h2>Daftar Tender Sesuai Minat Perusahaan (<%= totalResults %> ditemukan)</h2>
+                <div class="tender-grid">
+                    <% tenders.forEach(tender => { %>
+                        <div class="tender-card">
+                            <div class="card-header">
+                                <h5 class="card-title"><%= tender.judul %></h5>
+                                <div class="card-status">
+                                    <% if (tender.isExpired) { %>
+                                        <span class="badge status-closed">Expired</span>
+                                    <% } else if (tender.isNew) { %>
+                                        <span class="badge status-new">New</span>
+                                    <% } else { %>
+                                        <span class="badge status-open">Open</span>
+                                    <% } %>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="info-row">
+                                    <i class="fas fa-building info-icon"></i>
+                                    <span class="info-label">KKKS:</span>
+                                    <span class="info-value"><%= tender.kkks %></span>
+                                </div>
+                                <div class="info-row">
+                                    <i class="far fa-calendar-alt info-icon"></i>
+                                    <span class="info-label">Tayang:</span>
+                                    <span class="info-value"><%= tender.tanggal %></span>
+                                </div>
+                                 <div class="info-row <%= tender.isExpired ? 'deadline-expired' : '' %>">
+                                    <i class="far fa-calendar-times info-icon"></i>
+                                    <span class="info-label">Batas:</span>
+                                    <span class="info-value"><%= tender.batasWaktu %></span>
+                                </div>
+                                <div class="info-row">
+                                    <i class="fas fa-briefcase info-icon"></i>
+                                    <span class="info-label">Gol. Usaha:</span>
+                                    <span class="info-value"><%= tender.golonganUsaha || '-' %></span>
+                                </div>
+                                <div class="info-row">
+                                    <i class="fas fa-tag info-icon"></i>
+                                    <span class="info-label">Jenis Pengadaan:</span>
+                                    <span class="info-value"><%= tender.jenisPengadaan || '-' %></span>
+                                </div>
+                                <div class="bidang-usaha">
+                                    <strong>Bidang/Sub-Bidang Usaha:</strong>
+                                    <p><%= tender.bidangUsaha || 'Tidak disebutkan' %></p>
+                                </div>
+                                <div class="bidang-usaha" style="margin-top:10px;">
+                                    <strong>Deskripsi:</strong>
+                                    <p><%= tender.deskripsi || 'Tidak ada deskripsi.' %></p>
+                                </div>
+                            </div>
+                            <div class="card-actions">
+                                <% if (tender.attachments && tender.attachments.length > 0) { %>
+                                    <% tender.attachments.forEach((attachment, index) => { %>
+                                        <% if (attachment.localPdfPath) { %>
+                                            <a href="<%= attachment.localPdfPath %>" class="btn btn-pdf" target="_blank" title="<%= attachment.attachment_name %>">
+                                                <i class="fas fa-paperclip"></i> PDF <%= tender.attachments.length > 1 ? index + 1 : '' %>
+                                            </a>
+                                        <% } else if (attachment.attachment_url) { %>
+                                            <a href="<%= attachment.attachment_url %>" class="btn btn-pdf" target="_blank" title="Link Asli PDF: <%= attachment.attachment_name %>" style="background-color: #007bff;">
+                                                <i class="fas fa-external-link-alt"></i> Link Asli <%= tender.attachments.length > 1 ? index + 1 : '' %>
+                                            </a>
+                                        <% } else { %>
+                                            <button class="btn disabled" title="PDF tidak ditemukan: <%= attachment.attachment_name %>">
+                                                <i class="fas fa-times-circle"></i> PDF Hilang <%= tender.attachments.length > 1 ? index + 1 : '' %>
+                                            </button>
+                                        <% } %>
+                                    <% }); %>
+                                <% } else { %>
+                                    <small style="color:#6c757d;"><em>Tidak ada attachment.</em></small>
+                                <% } %>
+                            </div>
+                        </div>
+                    <% }); %>
+                </div>
+                <% if (totalPages > 1) { %>
+                    <div style="text-align: center; margin-top: 30px;">
+                        <% for (let i = 1; i <= totalPages; i++) { %>
+                            <a href="/tender-khusus?page=<%= i %>" 
+                               class="btn <%= i === currentPage ? 'btn-detail' : '' %>" 
+                               style="margin: 0 5px; <%= i !== currentPage ? 'background-color: #f0f0f0; color: #333;' : '' %>">
+                                <%= i %>
+                            </a>
+                        <% } %>
+                    </div>
+                <% } %>
+            </div>
+        <% } else if (!locals.errorMessage) { %>
+            <p class="empty-message">Tidak ada tender yang cocok dengan kriteria minat perusahaan yang telah ditentukan.</p>
+        <% } %>
+    </div>
+</body>
+</html> 

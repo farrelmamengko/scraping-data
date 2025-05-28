@@ -3,6 +3,7 @@ version: '3.8'
 services:
   app:
     container_name: skk_tender_app
+    build: .
     image: farrelmamengko/scraping-data:latest
     ports:
       - "3002:3000"

@@ -520,14 +520,22 @@
 <body>
 
 <header class="app-header">
-    <h1>SKK Migas Tender </h1>
+    <h1>SKK Migas Tender</h1>
+    <nav class="app-nav">
+        <ul style="list-style: none; margin: 0; padding: 0; display: flex;">
+            <li style="margin-right: 15px;"><a href="/" class="nav-link">Daftar Tender</a></li>
+            <li style="margin-right: 15px;"><a href="/tender-khusus" class="nav-link">Tender Perusahaan</a></li>
+            <li style="margin-right: 15px;"><a href="/dashboard" class="nav-link active">Dashboard</a></li>
+        </ul>
+    </nav>
 </header>
 
 <!-- Navigasi Utama -->
 <nav class="app-nav">
     <ul>
-        <li><a href="/" class="active">Daftar Tender</a></li> 
-        <li><a href="/dashboard">Dashboard</a></li>
+        <li><a href="/" class="nav-link active">Daftar Tender</a></li>
+        <li><a href="/dashboard" class="nav-link">Dashboard</a></li>
+        <li><a href="/tender-khusus" class="nav-link">Tender Perusahaan</a></li>
     </ul>
 </nav>
 
